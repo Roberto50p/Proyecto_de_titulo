@@ -18,5 +18,7 @@ urlpatterns = [
     path('qr', generar_qr2, name='qr'),
     path('descargar-excel/', descargar_excel_dif, name='descargar_excel'),
     path('descargar-excel-nopresente/', descargar_excel_nopresente, name='descargar_excel_nopresente'),
+
+    path('cargaclp', carga_clp, name='cargaclp')
     
 ]

@@ -1,0 +1,24 @@
+Proyecto_de_titulo/
+│
+├── conciliacion/
+│   ├── etl/
+│   │   ├── lectura_excel.py
+│   │   ├── normalizacion.py
+│   │   └── validaciones.py
+│   │
+│   ├── motor/
+│   │   ├── conciliador.py
+│   │   ├── reglas_debito.py
+│   │   ├── reglas_credito.py
+│   │   └── reglas_prepago.py
+│   │
+│   ├── reportes/
+│   │   ├── exportador.py
+│   │   └── excepciones.py
+│   │
+│   ├── tests/
+│   ├── views.py
+│   ├── urls.py
+│   └── templates/
+│
+└── manage.py

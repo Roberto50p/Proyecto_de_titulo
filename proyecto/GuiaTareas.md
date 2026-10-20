@@ -26,11 +26,43 @@
 **Participantes:** 2 integrantes
 
 **Análisis de archivos**
-- [ ] Analizar estructura del Excel del Hotel.
-- [ ] Analizar estructura del Excel de Transbank.
-- [ ] Analizar estructura del Excel del Banco.
-- [ ] Identificar columnas y datos comunes entre archivos.
-- [ ] Definir estructura estandarizada para la conciliación.
+- [x] Analizar estructura del Excel del Hotel.
+- [x] Analizar estructura del Excel de Transbank.
+- [x] Analizar estructura del Excel del Banco.
+- [x] Identificar columnas y datos comunes entre archivos.
+- [x] Definir estructura estandarizada para la conciliación.
+<!--Con el contexto ya aclarado las tarjetas tranbank (debito, credito, prepago) seguiran las siguientes columnas oara su total:
+	ventas:
+		Monto original de venta (+)	
+		Monto vuelto	
+		Tipo de venta/cuota	
+		N° de cuota	
+		Monto venta válido para abono (+)	
+		Comisión Transbank (-)	
+		IVA Comisión Transbank (-)	
+		Total abono (=)	
+	Ventas anuladas:
+		Fecha anulación	
+		Monto anulado (-)	
+		Monto retención anulacion	
+		Motivo retención	
+		Devolución comisión Transbank por anulación (+)	
+		Iva devolución comisión Transbank por anulación (+)					
+	Cobros	
+		Periodo de cobro	
+		Detalle del cobro u observación	
+		Monto cobro por servicio (-)	
+		IVA cobro por servicio (-)
+	Identificador									
+		N° de tarjeta	
+		Código de autorización de venta	
+		Código de autorización de anulación	
+		Orden de pedido / orden de compra	
+		Número único	
+		ID de servicio
+	ID transacción (TID)	
+	N° de boleta 
+    ahora tenemos problemas al encontrar una columna identificadora o asociada con la cartola del banco y el bordero -->
 
 **Extracción de datos**
 - [ ] Crear función para leer Excel del Hotel.

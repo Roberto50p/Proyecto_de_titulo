@@ -1068,4 +1068,9 @@ def cerrar_sesion(request):
     contex = {}
     logout(request)
     return render(request,"index.html",contex)
-    
+
+# to do
+# la funcion view que renderiza el html de la carga de excel en CLP
+def carga_clp(request):
+    pass
+    return render(request, "cargaclp.html")
