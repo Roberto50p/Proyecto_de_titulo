@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from .i18n import *
-
 from .models import *
 # importar el modelo de tabla User 
 from django.contrib.auth.models import User,Group
@@ -34,6 +33,8 @@ import httpx
 import asyncio
 from datetime import datetime
 
+##Importaciones 2026 por grupo de ValentinaOlivares
+from hotel.conciliacion.etl.lectura_excel import *
 
 documento_inf=[]
 monto_buscar_inf=[]
@@ -1071,6 +1072,24 @@ def cerrar_sesion(request):
 
 # to do
 # la funcion view que renderiza el html de la carga de excel en CLP
-def carga_clp(request):
-    pass
+
+
+##NuevoCodigo
+def carga_archivos_clp(request):
+    #Recibir los excel
+    if request.method == 'POST':
+        #crear lista de archivos (así crear codigo menos estricto)
+        archivos = [
+            request.FILES.get("archivo1"),
+            request.FILES.get("archivo2"),
+            request.FILES.get("archivo3")
+        ]
+        #resultados es la variable la cual llama el script de nuestro proceso de ETL
+        resultados = lectura_excel.identificar_procesar(archivos)
+
+        return render(request, "cargaclp.html", {
+            "resultados": resultados
+        })
+
     return render(request, "cargaclp.html")
+

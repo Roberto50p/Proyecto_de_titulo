@@ -17,18 +17,21 @@
 <form action="/subir" method="POST" enctype="multipart/form-data">
     {% csrf_token %}
     <div>
-        <label for="Débito">Archivo 1:</label>
-        <input type="file" id="archivo_debito" name="archivo1">
+        <label for="Débito">Primer Archivo:</label>
+        <input type="file" id="archivo1" name="archivo1"
+        accept =".xlsx, .xls, .csv" required>
     </div>
 
     <div>
-        <label for="Credito">Archivo 2:</label>
-        <input type="file" id="archivo_credito" name="archivo2">
+        <label for="Credito">Segundo Archivo:</label>
+        <input type="file" id="archivo2" name="archivo2"
+        accept =".xlsx, .xls, .csv" required>
     </div>
 
     <div>
-        <label for="Prepago">Archivo 3:</label>
-        <input type="file" id="archivo_prepago" name="archivo3">
+        <label for="Prepago">Tercer Archivo:</label>
+        <input type="file" id="archivo3" name="archivo3"
+        accept =".xlsx, .xls, .csv" required>
     </div>
 
     <button type="submit">Procesar</button>

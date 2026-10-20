@@ -19,6 +19,6 @@ urlpatterns = [
     path('descargar-excel/', descargar_excel_dif, name='descargar_excel'),
     path('descargar-excel-nopresente/', descargar_excel_nopresente, name='descargar_excel_nopresente'),
 
-    path('cargaclp', carga_clp, name='cargaclp')
+    path('cargaclp', carga_archivos_clp, name='cargaclp')
     
 ]

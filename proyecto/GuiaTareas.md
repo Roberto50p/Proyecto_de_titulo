@@ -65,8 +65,10 @@
     ahora tenemos problemas al encontrar una columna identificadora o asociada con la cartola del banco y el bordero -->
 
 **Extracción de datos**
-- [ ] Crear función para leer Excel del Hotel.
-- [ ] Crear función para leer Excel de Transbank.
+- [] Crear función para leer Excel del Hotel.
+- [x] Crear función para leer Excel de Transbank.
+<!--Cree una funcion en views.py (linea 1078) la cual los excel los guarda en una lista y luego los manda al archivo de ETL y ahi hacer la primera normalizacion de nombre del archivo 
+sigue una logica la cual aplica con todas las tarjetas transbank-->
 - [ ] Crear función para leer Excel del Banco.
 - [ ] Validar existencia de columnas obligatorias.
 
