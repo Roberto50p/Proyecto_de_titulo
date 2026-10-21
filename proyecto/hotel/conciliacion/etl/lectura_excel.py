@@ -38,5 +38,6 @@ def crear_dataframes(resultados):
     df_debito = dataframes["Debito"]
 
     # Mostrar los primeros 10 registros
+    #comentario para subir cositas jiji
     print(df_debito.head(10).to_string())
     return dataframes
