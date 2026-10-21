@@ -4,8 +4,10 @@ Proyecto_de_titulo/
 │   ├── etl/
 │   │   ├── lectura_excel.py
 │   │   ├── normalizacion.py
-│   │   └── validaciones.py
-│   │
+│   │   ├── validaciones.py
+|   |   ├── informacion_datos.ipynb
+|   |   └── pipeline.py --opcional
+│   │   
 │   ├── motor/
 │   │   ├── conciliador.py
 │   │   ├── reglas_debito.py

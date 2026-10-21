@@ -1,2 +1,4 @@
 Cargarclp --> requiere que esten si o si los 3 archivos (mostrar advertencia de que falta un archivo)
 ETL --> que se pueda reonocer el archivo a traves del nombre (listo)Y ADEMAS poder abrir el archivo y renocer de forma interna si es debito / credito / etc
+ETL --> mejorar la logica de tratar los con "else" (es decir que hacer algo mas inteligente y devolver el error con un msg)
+ETL --> Validacion para soportar un archivo, tener en el sistema tal archivo y que no sea remplazado por otro 

@@ -1078,6 +1078,7 @@ def cerrar_sesion(request):
 def carga_archivos_clp(request):
     #Recibir los excel
     if request.method == 'POST':
+        archivos = []
         #crear lista de archivos (así crear codigo menos estricto)
         archivos = [
             request.FILES.get("archivo1"),
@@ -1088,6 +1089,7 @@ def carga_archivos_clp(request):
         ]
         #resultados es la variable la cual llama el script de nuestro proceso de ETL
         resultados = identificar_procesar(archivos)
+        dataframes = crear_dataframes(resultados)
         print(resultados)
 
         return render(request, "cargaclp.html", {
