@@ -3,11 +3,15 @@ def identificar_procesar(archivos):
     for archivo in archivos:
         nombre = archivo.name.lower()
         if "debito" in nombre:
-            tipo = "Débito"
+            tipo = "Debito"
         elif "credito" in nombre:
-            tipo = "Crédito"
+            tipo = "Credito"
         elif "prepago" in nombre:
             tipo = "Prepago"
+        elif "cartola" in nombre:
+            tipo = "Cartola"
+        elif "bordero" in nombre:
+            tipo = "Bordero"
         else:
             tipo = "Desconocido"
 

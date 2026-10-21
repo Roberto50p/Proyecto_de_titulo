@@ -1,0 +1,2 @@
+Cargarclp --> requiere que esten si o si los 3 archivos (mostrar advertencia de que falta un archivo)
+ETL --> que se pueda reonocer el archivo a traves del nombre (listo)Y ADEMAS poder abrir el archivo y renocer de forma interna si es debito / credito / etc

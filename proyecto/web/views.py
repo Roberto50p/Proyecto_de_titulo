@@ -1082,10 +1082,13 @@ def carga_archivos_clp(request):
         archivos = [
             request.FILES.get("archivo1"),
             request.FILES.get("archivo2"),
-            request.FILES.get("archivo3")
+            request.FILES.get("archivo3"),
+            request.FILES.get("archivo4"),
+            request.FILES.get("archivo5")
         ]
         #resultados es la variable la cual llama el script de nuestro proceso de ETL
-        resultados = lectura_excel.identificar_procesar(archivos)
+        resultados = identificar_procesar(archivos)
+        print(resultados)
 
         return render(request, "cargaclp.html", {
             "resultados": resultados

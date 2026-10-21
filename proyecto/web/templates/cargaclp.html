@@ -13,24 +13,36 @@
     y ser remplazados por los templates de Django
     {% endcomment %}
 
-<h1>Carga archivos CLP<h1>
-<form action="/subir" method="POST" enctype="multipart/form-data">
+<h1>Carga archivos CLP (pueden subir los archivos en cualquier orden)<h1>
+<form action="{% url 'cargaclp' %}" method="POST" enctype="multipart/form-data">
     {% csrf_token %}
     <div>
-        <label for="Débito">Primer Archivo:</label>
+        <label for="Débito">TransBank:</label>
         <input type="file" id="archivo1" name="archivo1"
         accept =".xlsx, .xls, .csv" required>
     </div>
 
     <div>
-        <label for="Credito">Segundo Archivo:</label>
+        <label for="Credito">TransBank:</label>
         <input type="file" id="archivo2" name="archivo2"
         accept =".xlsx, .xls, .csv" required>
     </div>
 
     <div>
-        <label for="Prepago">Tercer Archivo:</label>
+        <label for="Prepago">TransBank:</label>
         <input type="file" id="archivo3" name="archivo3"
+        accept =".xlsx, .xls, .csv" required>
+    </div>
+
+    <div>
+        <label for="Prepago">Archivo Cartola Banco:</label>
+        <input type="file" id="archiv4" name="archivo4"
+        accept =".xlsx, .xls, .csv" required>
+    </div>
+
+    <div>
+        <label for="Prepago">Archivo Bordero:</label>
+        <input type="file" id="archivo5" name="archivo5"
         accept =".xlsx, .xls, .csv" required>
     </div>
 
