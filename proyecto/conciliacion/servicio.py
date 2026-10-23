@@ -225,7 +225,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         for r in resultado.to_dict("records"):
             v = ventas_obj[r["venta_id"]]
             v.categoria, v.mensaje, v.nota = r["categoria"], r["mensaje"], r["nota"]
-            v.codigo_sugerido = r["codigo_sugerido"] or ""
+            v.codigo_sugerido = "" if pd.isna(r["codigo_sugerido"]) else r["codigo_sugerido"]
             if not pd.isna(r["pago_id"]):
                 v.pago = pagos_por_id[int(r["pago_id"])]
                 v.monto_bordero, v.diferencia = int(r["monto_bordero"]), int(r["diferencia"])

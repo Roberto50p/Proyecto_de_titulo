@@ -126,7 +126,7 @@
     <h2><span class="medio medio-{{ vista }}">{{ capitulo.etiqueta }}</span></h2>
     <p>{{ capitulo.resumen.n_ventas|miles }} ventas · {{ capitulo.resumen.n_falla|miles }} con falla · ventas Transbank {{ capitulo.resumen.ventas|pesos }} · comisión + IVA {{ capitulo.resumen.comision_iva|pesos }}</p>
     {% for a in capitulo.abonos %}
-      <p class="{% if a.categoria == 'OK' %}estado-ok{% else %}estado-error{% endif %}">Abono del {{ a.fecha_abono|date:"d/m/Y" }} por {{ a.total_abono|pesos }}: {% if a.categoria == 'OK' %}cuadra con la cartola{% else %}no cuadra con la cartola{% endif %}. <span class="ayuda">{{ a.mensaje }}</span></p>
+      <p class="{% if a.categoria == 'OK' %}estado-ok{% else %}estado-error{% endif %}">Abono del {{ a.fecha_abono|date:"d/m/Y" }} por {{ a.total_abono|pesos }}: {% if a.categoria == 'OK' %}cuadra con la cartola ({{ a.cartola_fecha|date:"d/m/Y" }}).{% else %}no cuadra con la cartola. <span class="ayuda">{{ a.mensaje }}</span>{% endif %}</p>
     {% endfor %}
   </section>
 

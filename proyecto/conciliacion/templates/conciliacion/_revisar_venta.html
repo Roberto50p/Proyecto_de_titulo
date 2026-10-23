@@ -1,1 +1,8 @@
-{% if v.revisado %}<span class="estado-ok">Revisado</span>{% endif %}{% if v.observacion %}<p class="ayuda">{{ v.observacion }}</p>{% endif %}
+<form method="post" action="{% url 'conciliacion:revisar_venta' v.pk %}" class="revisar">
+  {% csrf_token %}
+  <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+  <label class="sr-only" for="obs-v{{ v.pk }}">Observación de {{ v.codigo_autorizacion }}</label>
+  <textarea id="obs-v{{ v.pk }}" name="observacion" rows="2" placeholder="Observación">{{ v.observacion }}</textarea>
+  <label class="check"><input type="checkbox" name="revisado"{% if v.revisado %} checked{% endif %}> Revisado</label>
+  <button type="submit" class="boton">Guardar</button>
+</form>

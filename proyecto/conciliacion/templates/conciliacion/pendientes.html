@@ -1,0 +1,53 @@
+{% extends "conciliacion/base.html" %}
+{% load conciliacion_extras %}
+{% block titulo %}Pendientes abiertos{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <h1>Pendientes abiertos</h1>
+    <p class="ayuda">{{ total }} pendientes abiertos: pagos con tarjeta del bordero que Transbank todavía no abona. Se cierran solos cuando aparece su venta en una conciliación posterior.</p>
+  </div>
+</header>
+
+<form method="get" class="filtros">
+  <div class="campo">
+    <label for="medio">Medio de pago</label>
+    <select id="medio" name="medio">
+      <option value="">Todos</option>
+      {% for clave, nombre in medios %}<option value="{{ clave }}"{% if clave == medio_filtro %} selected{% endif %}>{{ nombre }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="boton">Filtrar</button>
+</form>
+
+<div class="tabla-envoltura">
+  <table>
+    <thead><tr><th>Fecha</th><th>Medio</th><th>Cod. Deb.</th><th>Documento</th><th class="num">Monto</th><th>Hab / cuenta</th><th>Mes de origen</th><th>Observación</th></tr></thead>
+    <tbody>
+    {% for p in pendientes %}
+      <tr class="fila-medio-{{ p.medio }}">
+        <td>{{ p.pago.fecha|date:"d/m/Y" }} <span class="ayuda">{{ p.pago.hora }}</span></td>
+        <td><span class="medio medio-{{ p.medio }}">{{ p.medio|medio }}</span></td>
+        <td>{{ p.pago.cod_deb }}</td>
+        <td>{{ p.pago.documento }}</td>
+        <td class="num">{{ p.pago.valor|pesos }}</td>
+        <td>{{ p.pago.hab|default:"-" }} / {{ p.pago.cuenta }}</td>
+        <td>{{ p.origen.etiqueta }}</td>
+        <td>
+          <form method="post" action="{% url 'conciliacion:revisar_pendiente' p.pk %}" class="revisar">
+            {% csrf_token %}
+            <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+            <label class="sr-only" for="obs-p{{ p.pk }}">Observación</label>
+            <input type="text" id="obs-p{{ p.pk }}" name="observacion" value="{{ p.observacion }}" placeholder="Agregar observación">
+            <label class="check"><input type="checkbox" name="revisado"{% if p.revisado %} checked{% endif %}> Revisado</label>
+            <button type="submit" class="boton">Guardar</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8">No hay pendientes abiertos.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

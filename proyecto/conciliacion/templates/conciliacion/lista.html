@@ -1,11 +1,41 @@
 {% extends "conciliacion/base.html" %}
+{% load conciliacion_extras %}
 {% block titulo %}Conciliaciones{% endblock %}
 {% block contenido %}
 <header class="cabecera">
-  <h1>Conciliaciones</h1>
+  <div>
+    <h1>Conciliaciones</h1>
+    <p class="ayuda">Un registro por mes de abono. Abre un mes para ver sus fallas o descargar el PDF y el Excel.</p>
+  </div>
   <a class="boton boton-principal" href="{% url 'conciliacion:nueva' %}">Nueva conciliación</a>
 </header>
-{% if not conciliaciones %}
+{% if conciliaciones %}
+<div class="tabla-envoltura">
+  <table>
+    <thead><tr><th>Mes de abono</th><th>Estado</th><th class="num">Abonado</th><th class="num">En cartola</th><th class="num">Diferencial</th><th class="num">Ventas</th><th class="num">Con falla</th><th class="num">Pendientes</th><th>Procesada</th><th>Descargas</th></tr></thead>
+    <tbody>
+    {% for c in conciliaciones %}
+      <tr>
+        <td><a href="{% if c.estado == 'PROCESADA' %}{% url 'conciliacion:detalle' c.pk %}{% else %}{% url 'conciliacion:archivos' c.pk %}{% endif %}"><strong>{{ c.etiqueta }}</strong></a></td>
+        <td>{{ c.get_estado_display }}</td>
+        {% if c.estado == "PROCESADA" %}
+          <td class="num">{{ c.resumen.total.abono_tbk|pesos }}</td>
+          <td class="num">{{ c.resumen.total.abono_cartola|pesos }}</td>
+          <td class="num {% if c.resumen.total.diferencial %}error{% else %}estado-ok{% endif %}">{{ c.resumen.total.diferencial|pesos }}</td>
+          <td class="num">{{ c.resumen.total.n_ventas|miles }}</td>
+          <td class="num">{{ c.resumen.total.n_falla }}</td>
+          <td class="num">{{ c.resumen.n_pendientes|miles }}</td>
+          <td>{{ c.procesada_en|date:"d/m/Y H:i" }}</td>
+          <td><a href="{% url 'conciliacion:pdf' c.pk %}">PDF</a> · <a href="{% url 'conciliacion:excel' c.pk %}">Excel</a></td>
+        {% else %}
+          <td colspan="8" class="ayuda">Sin procesar: <a href="{% url 'conciliacion:archivos' c.pk %}">continuar con los archivos</a></td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
   <section class="vacio">
     <p>Aún no hay conciliaciones.</p>
     <p class="ayuda">Empieza eligiendo el mes de abono y subiendo el bordero, la cartola y los archivos de Transbank.</p>

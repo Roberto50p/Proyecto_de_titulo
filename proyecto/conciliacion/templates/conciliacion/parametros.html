@@ -1,0 +1,54 @@
+{% extends "conciliacion/base.html" %}
+{% block titulo %}Parámetros{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <h1>Parámetros</h1>
+    <p class="ayuda">Los cambios se aplican en la próxima conciliación que proceses. Cada conciliación guarda los parámetros con que se hizo.</p>
+  </div>
+</header>
+
+<form method="post" class="bloque" novalidate>
+  {% csrf_token %}
+  <h2>Reglas de comparación</h2>
+  <div class="fila-campos">
+    {% for campo in form %}
+      <div class="campo">
+        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+        {{ campo }}
+        {% if campo.help_text %}<p class="ayuda">{{ campo.help_text }}</p>{% endif %}
+        {% for e in campo.errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="acciones"><button type="submit" class="boton boton-principal">Guardar parámetros</button></div>
+</form>
+
+<section class="bloque">
+  <h2>Equivalencias del bordero</h2>
+  <p class="ayuda">Qué medio de pago puede representar cada código de débito (Cod. Deb.) del bordero. Si una venta cruza con un código que no corresponde a su medio, se informa como "Medio de pago distinto" (aviso). Pendiente de confirmar con el hotel.</p>
+  <div class="tabla-envoltura" style="margin-bottom:1rem">
+    <table>
+      <thead><tr><th>Cod. Deb.</th><th>Medio de pago</th><th><span class="sr-only">Quitar</span></th></tr></thead>
+      <tbody>
+      {% for e in equivalencias %}
+        <tr class="fila-medio-{{ e.medio }}">
+          <td>{{ e.cod_deb }}</td>
+          <td><span class="medio medio-{{ e.medio }}">{{ e.get_medio_display }}</span></td>
+          <td><form method="post">{% csrf_token %}<button type="submit" name="quitar_equivalencia" value="{{ e.pk }}" class="boton boton-peligro" aria-label="Quitar {{ e }}">Quitar</button></form></td>
+        </tr>
+      {% empty %}<tr><td colspan="3">No hay equivalencias.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <form method="post" class="filtros">
+    {% csrf_token %}
+    <input type="hidden" name="agregar_equivalencia" value="1">
+    <div class="campo"><label for="cod_deb">Cod. Deb.</label><input type="text" id="cod_deb" name="cod_deb" placeholder="Ej. D$" required></div>
+    <div class="campo"><label for="medio_eq">Medio de pago</label>
+      <select id="medio_eq" name="medio">{% for clave, nombre in medios %}<option value="{{ clave }}">{{ nombre }}</option>{% endfor %}</select>
+    </div>
+    <button type="submit" class="boton">Agregar equivalencia</button>
+  </form>
+</section>
+{% endblock %}

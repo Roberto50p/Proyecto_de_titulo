@@ -2,11 +2,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import servicio
-from .forms import MesForm
-from .models import ArchivoCargado, Conciliacion
+from .forms import MesForm, ParametrosForm, RevisionForm
+from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
+                     VentaTransbank)
 from .motor import categorias as cat
 from .reportes import excel, pdf
 from .reportes.datos import armar
@@ -27,7 +30,7 @@ def inicio(request):
 
 @login_required
 def lista(request):
-    return render(request, "conciliacion/lista.html", {"conciliaciones": []})
+    return render(request, "conciliacion/lista.html", {"conciliaciones": Conciliacion.objects.all()})
 
 
 # ------------------------------------------------------------------ asistente
@@ -62,6 +65,7 @@ def archivos(request, pk):
         subidos = request.FILES.getlist("archivos")
         if not subidos:
             messages.error(request, "Selecciona al menos un archivo.")
+        leidos = 0
         for f in subidos:
             huella = servicio.sha256_de(f)
             if conc.archivos.filter(sha256=huella).exists():
@@ -74,8 +78,10 @@ def archivos(request, pk):
             if ac.error:
                 messages.error(request, f"{ac.nombre}: {ac.error}")
             else:
-                messages.success(request, f"{ac.nombre}: leído como {ac.get_tipo_display()}"
-                                          f"{' ' + ac.get_medio_display() if ac.medio else ''}.")
+                leidos += 1
+        if leidos:
+            messages.success(request, f"{leidos} archivo{'s' if leidos > 1 else ''} leído{'s' if leidos > 1 else ''} "
+                                      "correctamente. Revisa cómo se reconoció cada uno en la tabla.")
         return redirect("conciliacion:archivos", conc.pk)
     return render(request, "conciliacion/nueva_archivos.html",
                   {"conc": conc, "archivos": conc.archivos.all(), "pasos": _pasos(2)})
@@ -162,3 +168,81 @@ def descargar_excel(request, pk):
                              content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     respuesta["Content-Disposition"] = f'attachment; filename="conciliacion_{conc.anio}_{conc.mes:02d}.xlsx"'
     return respuesta
+
+
+# ------------------------------------------------------------------ gestión
+
+
+def _volver_seguro(request, por_defecto: str) -> str:
+    destino = request.POST.get("volver", "")
+    if destino and url_has_allowed_host_and_scheme(destino, allowed_hosts={request.get_host()},
+                                                   require_https=request.is_secure()):
+        return destino
+    return por_defecto
+
+
+@login_required
+@require_POST
+def revisar_venta(request, pk):
+    venta = get_object_or_404(VentaTransbank, pk=pk)
+    form = RevisionForm(request.POST)
+    if form.is_valid():
+        venta.revisado = form.cleaned_data["revisado"]
+        venta.observacion = form.cleaned_data["observacion"]
+        venta.save(update_fields=["revisado", "observacion"])
+        messages.success(request, f"Observación guardada para {venta.codigo_autorizacion}.")
+    return redirect(_volver_seguro(request, reverse("conciliacion:detalle", args=[venta.conciliacion_id])))
+
+
+@login_required
+def pendientes(request):
+    abiertos = Pendiente.objects.filter(abierto=True).select_related("pago", "origen")
+    medio_filtro = request.GET.get("medio", "")
+    if medio_filtro:
+        abiertos = abiertos.filter(medio=medio_filtro)
+    return render(request, "conciliacion/pendientes.html", {
+        "pendientes": abiertos.order_by("pago__fecha", "pago__hora"),
+        "total": Pendiente.objects.filter(abierto=True).count(),
+        "medios": MEDIO_CHOICES, "medio_filtro": medio_filtro,
+    })
+
+
+@login_required
+@require_POST
+def revisar_pendiente(request, pk):
+    pendiente = get_object_or_404(Pendiente, pk=pk)
+    form = RevisionForm(request.POST)
+    if form.is_valid():
+        pendiente.revisado = form.cleaned_data["revisado"]
+        pendiente.observacion = form.cleaned_data["observacion"]
+        pendiente.save(update_fields=["revisado", "observacion"])
+        messages.success(request, "Observación guardada.")
+    return redirect(_volver_seguro(request, reverse("conciliacion:pendientes")))
+
+
+@login_required
+def parametros(request):
+    instancia = ParametrosSistema.cargar()
+    form = ParametrosForm(instance=instancia)
+    if request.method == "POST":
+        if "agregar_equivalencia" in request.POST:
+            cod_deb = request.POST.get("cod_deb", "").strip().upper()
+            medio = request.POST.get("medio", "")
+            if cod_deb and medio in dict(MEDIO_CHOICES):
+                EquivalenciaMedio.objects.get_or_create(cod_deb=cod_deb, medio=medio)
+                messages.success(request, f"{cod_deb} ahora puede ser {dict(MEDIO_CHOICES)[medio]}.")
+            else:
+                messages.error(request, "Indica el Cod. Deb. y el medio de pago.")
+            return redirect("conciliacion:parametros")
+        if "quitar_equivalencia" in request.POST:
+            EquivalenciaMedio.objects.filter(pk=request.POST["quitar_equivalencia"]).delete()
+            messages.info(request, "Equivalencia quitada.")
+            return redirect("conciliacion:parametros")
+        form = ParametrosForm(request.POST, instance=instancia)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Parámetros guardados. Se aplican en la próxima conciliación que proceses.")
+            return redirect("conciliacion:parametros")
+    return render(request, "conciliacion/parametros.html", {
+        "form": form, "equivalencias": EquivalenciaMedio.objects.all(), "medios": MEDIO_CHOICES,
+    })

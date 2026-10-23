@@ -14,6 +14,8 @@ urlpatterns = [
     path("conciliaciones/<int:pk>/", views.detalle, name="detalle"),
     path("conciliaciones/<int:pk>/pdf/", views.descargar_pdf, name="pdf"),
     path("conciliaciones/<int:pk>/excel/", views.descargar_excel, name="excel"),
-    path("pendientes/", views.lista, name="pendientes"),
-    path("parametros/", views.lista, name="parametros"),
+    path("ventas/<int:pk>/revisar/", views.revisar_venta, name="revisar_venta"),
+    path("pendientes/", views.pendientes, name="pendientes"),
+    path("pendientes/<int:pk>/revisar/", views.revisar_pendiente, name="revisar_pendiente"),
+    path("parametros/", views.parametros, name="parametros"),
 ]

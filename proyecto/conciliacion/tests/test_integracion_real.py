@@ -27,6 +27,7 @@ def test_resultado_septiembre(septiembre_procesado):
     assert conc.ventas.get(codigo_autorizacion="F0FUAZ").codigo_sugerido == "0FOFUAZ"
     cuota = conc.ventas.get(codigo_autorizacion="626135")
     assert (cuota.categoria, cuota.cuota) == ("CUOTA", "3/3")
+    assert dif.codigo_sugerido == ""
 
 
 def test_abonos_y_cuadratura(septiembre_procesado):

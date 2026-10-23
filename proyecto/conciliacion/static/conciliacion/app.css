@@ -197,3 +197,16 @@ details summary { cursor: pointer; color: var(--tinta-suave); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Formularios de revisión dentro de tablas */
+.revisar { display: flex; flex-direction: column; gap: .35rem; min-width: 200px; }
+.revisar textarea, .revisar input[type=text] { min-height: 38px; font-size: .9rem; }
+.revisar .boton { min-height: 36px; padding: .3rem .8rem; align-self: flex-start; }
+.check { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; }
+.check input { width: 18px; height: 18px; }
+
+/* Ajustes tras la prueba en navegador */
+.app { background: linear-gradient(to right, var(--lateral) 240px, var(--fondo) 240px); }
+.contenido { min-width: 0; }
+td.mensaje-celda { min-width: 320px; }
+@media (max-width: 900px) { .app { background: var(--fondo); } }
