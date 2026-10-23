@@ -210,3 +210,12 @@ details summary { cursor: pointer; color: var(--tinta-suave); }
 .contenido { min-width: 0; }
 td.mensaje-celda { min-width: 320px; }
 @media (max-width: 900px) { .app { background: var(--fondo); } }
+
+/* Correcciones de la revisión de interfaz */
+:focus-visible { outline-color: var(--tinta); }
+.lateral :focus-visible { outline-color: #f5b94a; }
+.tabla-envoltura { position: relative; }
+td .etiqueta { white-space: normal; }
+td.mensaje-celda { min-width: 240px; }
+tr[id] { scroll-margin-top: 1rem; }
+.zona-carga input[type=file] { max-width: 100%; }

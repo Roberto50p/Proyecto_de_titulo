@@ -52,6 +52,27 @@
     </div>
   </section>
 
+  <p class="{% if d.cuadra %}estado-ok{% else %}error{% endif %}" style="margin-top:-.75rem">
+    {% if d.cuadra %}Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "Ventas Transbank".{% else %}La suma de las categorías no coincide con "Ventas Transbank" en algún medio de pago; revisa los archivos Transbank.{% endif %}
+  </p>
+
+  {% if d.cartola_sin_archivo %}
+  <section class="bloque" role="alert">
+    <h2 class="error">Abonos de la cartola sin archivo Transbank ({{ d.cartola_sin_archivo|length }} · {{ conc.resumen.cartola_sin_archivo.monto|pesos }})</h2>
+    <p>Estos abonos de Transbank llegaron al banco en {{ conc.etiqueta }}, pero no se cargó su archivo "Abonos por día". Sus ventas no se pudieron verificar: descarga los archivos de esas fechas desde Transbank y agrégalos.</p>
+    <div class="tabla-envoltura">
+      <table>
+        <thead><tr><th>Fecha</th><th>Descripción en la cartola</th><th>Medio probable</th><th class="num">Monto</th></tr></thead>
+        <tbody>
+        {% for m in d.cartola_sin_archivo %}
+          <tr><td>{{ m.fecha|date:"d/m/Y" }}</td><td>{{ m.descripcion }}</td><td>{{ m.medio_probable }}</td><td class="num">{{ m.abono|pesos }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="bloque">
     <h2>Qué revisar primero</h2>
     <p class="ayuda">Ventas con falla de los tres medios, de la más grave a la menos grave.</p>
@@ -154,7 +175,7 @@
       <thead><tr><th>Fecha</th><th>Código</th><th>Local</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th class="num">Diferencia</th><th>Categoría</th><th>Qué hacer</th><th>Revisión</th></tr></thead>
       <tbody>
       {% for v in registros %}
-        <tr>
+        <tr id="v{{ v.pk }}">
           <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
           <td><strong>{{ v.codigo_autorizacion }}</strong>{% if v.codigo_sugerido %}<br><span class="ayuda">bordero: {{ v.codigo_sugerido }}</span>{% endif %}{% if v.cuota %}<br><span class="ayuda">cuota {{ v.cuota }}</span>{% endif %}</td>
           <td>{{ v.local }}</td>

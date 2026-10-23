@@ -20,3 +20,13 @@ def test_pdf_septiembre(septiembre_procesado):
     assert f"Página 1 de {len(lector.pages)}" in texto
     assert "F0FUAZ" in texto and "0FOFUAZ" in texto
     assert "5.269.462" in texto
+
+
+def test_pdf_con_texto_especial_en_observacion(septiembre_procesado):
+    from conciliacion.models import Pendiente
+
+    p = Pendiente.objects.first()
+    p.observacion = "monto<bordero & revisar"
+    p.save()
+    texto = "\n".join(pg.extract_text() for pg in PdfReader(BytesIO(generar(septiembre_procesado))).pages)
+    assert "monto<bordero & revisar" in texto

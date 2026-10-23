@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from ..models import ArchivoCargado, Conciliacion, PagoBordero, Pendiente
 from ..motor import categorias as cat
+from ..servicio import cartola_sin_archivo
 
 EMPRESA = "HOTELERA SAN FRANCISCO S.A."
 DEPARTAMENTO = "Depto. Adm. y Finanzas"
@@ -18,9 +19,11 @@ def _orden(v):
 
 
 def pendientes_abiertos_al_cierre(conc: Conciliacion):
-    """Pendientes abiertos originados en este mes o antes (arrastrados)."""
+    """Pendientes que estaban abiertos al cierre del mes: originados en este mes o antes y que, si ya se
+    cerraron, fue en un mes posterior. Así el reporte de un mes no cambia al procesar los siguientes."""
     anteriores = Q(origen__anio__lt=conc.anio) | Q(origen__anio=conc.anio, origen__mes__lte=conc.mes)
-    return (Pendiente.objects.filter(anteriores, abierto=True)
+    cerrado_despues = Q(cierre__anio__gt=conc.anio) | Q(cierre__anio=conc.anio, cierre__mes__gt=conc.mes)
+    return (Pendiente.objects.filter(anteriores).filter(Q(abierto=True) | cerrado_despues)
             .select_related("pago", "origen").order_by("pago__fecha", "pago__hora"))
 
 
@@ -77,4 +80,6 @@ def armar(conc: Conciliacion) -> dict:
         "parametros": conc.parametros,
         "archivos": list(conc.archivos.all()),
         "invalidos_bordero": list(PagoBordero.objects.filter(archivo__conciliacion=conc, invalido=True)),
+        "cartola_sin_archivo": cartola_sin_archivo(conc),
+        "cuadra": all(r.get("cuadratura", 0) == 0 for r in resumen_medios),
     }

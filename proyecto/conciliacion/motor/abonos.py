@@ -30,8 +30,9 @@ def cuadratura_archivo(resumen: dict) -> int:
 def conciliar_abonos(abonos: list[dict], cartola: pd.DataFrame, cartola_rango: tuple[date, date],
                      params: Parametros) -> list[dict]:
     patrones = [clave(p) for p in params.patrones_cartola]
+    # Cada línea recuerda su posición en la cartola para poder marcarla como usada.
     lineas = [
-        l for l in cartola.to_dict("records")
+        {**l, "indice": i} for i, l in enumerate(cartola.to_dict("records"))
         if l["abono"] > 0 and any(p in clave(l["descripcion"]) for p in patrones)
     ]
     usadas: set[int] = set()
@@ -46,6 +47,7 @@ def conciliar_abonos(abonos: list[dict], cartola: pd.DataFrame, cartola_rango: t
                 "cartola_fecha": l["fecha"] if l else None,
                 "cartola_descripcion": l["descripcion"] if l else "",
                 "cartola_monto": l["abono"] if l else None,
+                "cartola_indice": l["indice"] if l else None,
                 "diferencia": a["total_abono"] - l["abono"] if l else None,
                 "mensaje": mensaje}
 

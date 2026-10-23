@@ -129,8 +129,8 @@ class PagoBordero(models.Model):
                                      on_delete=models.SET_NULL)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["documento_norm", "fecha", "hora", "valor", "cuenta", "cod_deb"], name="pago_bordero_unico")]
+        # Identidad sin documento ni valor: son justo los datos que el analista corrige en FrontOffice.
+        constraints = [models.UniqueConstraint(fields=["fecha", "hora", "cuenta", "cod_deb"], name="pago_bordero_unico")]
         ordering = ["fecha", "hora"]
 
     def __str__(self):
@@ -220,6 +220,12 @@ class MovimientoCartola(models.Model):
     abono = models.BigIntegerField(default=0)
     saldo = models.BigIntegerField(default=0)
     es_transbank = models.BooleanField(default=False)
+    conciliado = models.BooleanField(default=False)
+
+    @property
+    def medio_probable(self) -> str:
+        """Las líneas 'Abono Comer. Tc Tbk' son de crédito; las demás de débito o prepago."""
+        return "Crédito" if "tc tbk" in self.descripcion.lower() else "Débito o prepago"
 
     class Meta:
         ordering = ["fecha"]

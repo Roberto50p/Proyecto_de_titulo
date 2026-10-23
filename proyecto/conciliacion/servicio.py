@@ -1,7 +1,7 @@
 """Servicio que lee los archivos de una conciliación, ejecuta el motor y guarda el resultado."""
 
 import hashlib
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import pandas as pd
 from django.db import transaction
@@ -108,6 +108,12 @@ def validar(conc: Conciliacion) -> list[str]:
             if (a.fecha_abono.year, a.fecha_abono.month) != (conc.anio, conc.mes):
                 errores.append(f"{a.nombre}: la fecha de abono {fmt_fecha(a.fecha_abono)} no pertenece a "
                                f"{conc.etiqueta}.")
+    repetidos = Counter((a.medio, a.fecha_abono) for a in archivos
+                        if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and not a.error)
+    for (medio, dia), n in repetidos.items():
+        if n > 1:
+            errores.append(f"Hay {n} archivos Transbank de {cat.ETIQUETA_MEDIO[medio]} con abono del {fmt_fecha(dia)}; "
+                           "quita el repetido.")
     return errores
 
 
@@ -134,7 +140,10 @@ def advertencias(conc: Conciliacion) -> list[str]:
 
 
 def _deshacer(conc: Conciliacion) -> dict:
-    """Revierte el resultado anterior de la conciliación y devuelve las observaciones a conservar."""
+    """Revierte el resultado anterior de la conciliación y devuelve las observaciones a conservar.
+
+    Los pendientes que ya cerró un mes posterior se mantienen: su historia pertenece a ese mes.
+    """
     guardado = {
         "ventas": {(v.categoria, v.codigo_autorizacion, v.fecha_venta): (v.revisado, v.observacion)
                    for v in conc.ventas.all() if v.revisado or v.observacion},
@@ -144,7 +153,7 @@ def _deshacer(conc: Conciliacion) -> dict:
                        for p in conc.pendientes.all() if p.revisado or p.observacion},
     }
     Pendiente.objects.filter(cierre=conc).update(abierto=True, cierre=None)
-    conc.pendientes.all().delete()
+    conc.pendientes.filter(cierre__isnull=True).delete()
     PagoBordero.objects.filter(conciliacion=conc).update(conciliacion=None)
     conc.ventas.all().delete()
     conc.abonos.all().delete()
@@ -152,18 +161,35 @@ def _deshacer(conc: Conciliacion) -> dict:
     return guardado
 
 
+def reabrir(conc: Conciliacion) -> None:
+    """Deja una conciliación procesada otra vez en borrador (por ejemplo, al quitar un archivo)."""
+    with transaction.atomic():
+        _deshacer(conc)
+        conc.estado, conc.resumen, conc.procesada_en = Conciliacion.BORRADOR, {}, None
+        conc.save()
+
+
 def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:
+    """Guarda los pagos con tarjeta del bordero sin duplicarlos.
+
+    Un pago se identifica por fecha, hora, cuenta y Cod. Deb.; si el hotel corrigió el documento o el valor en
+    FrontOffice y vuelve a exportar, se actualiza el mismo pago en vez de crear otro.
+    """
     b = leer_bordero(ac.archivo.path)
     CoberturaBordero.objects.get_or_create(desde=b.desde, hasta=b.hasta, archivo=ac)
     ids = []
     for fila in pagos_tarjeta(b.movimientos, params).to_dict("records"):
-        pago, _ = PagoBordero.objects.get_or_create(
-            documento_norm=fila["documento_norm"], fecha=fila["fecha"], hora=fila["hora"],
-            valor=fila["valor"], cuenta=fila["cuenta"], cod_deb=fila["cod_deb"],
-            defaults={k: fila[k] for k in ["hab", "reserva", "descripcion", "factura", "documento",
-                                           "usuario", "designacion"]} | {"invalido": bool(fila["invalido"]),
-                                                                         "archivo": ac},
+        corregibles = {"documento": fila["documento"], "documento_norm": fila["documento_norm"],
+                       "valor": fila["valor"], "invalido": bool(fila["invalido"])}
+        pago, creado = PagoBordero.objects.get_or_create(
+            fecha=fila["fecha"], hora=fila["hora"], cuenta=fila["cuenta"], cod_deb=fila["cod_deb"],
+            defaults={k: fila[k] for k in ["hab", "reserva", "descripcion", "factura", "usuario", "designacion"]}
+            | corregibles | {"archivo": ac},
         )
+        if not creado and any(getattr(pago, k) != v for k, v in corregibles.items()):
+            for k, v in corregibles.items():
+                setattr(pago, k, v)
+            pago.save(update_fields=list(corregibles))
         ids.append(pago.id)
     return ids
 
@@ -249,19 +275,21 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         movimientos = pd.DataFrame(columns=["fecha", "descripcion", "canal", "nro_docto", "cargo", "abono", "saldo"])
         rango = (None, None)
     patrones = [clave(p) for p in params.patrones_cartola]
-    MovimientoCartola.objects.bulk_create([MovimientoCartola(
-        conciliacion=conc, fecha=m["fecha"], descripcion=m["descripcion"], canal=m["canal"],
-        nro_docto=m["nro_docto"], cargo=m["cargo"], abono=m["abono"], saldo=m["saldo"],
-        es_transbank=m["abono"] > 0 and any(p in clave(m["descripcion"]) for p in patrones),
-    ) for m in movimientos.to_dict("records")])
     entradas = [{"archivo_id": ac.id, "medio": ac.medio, "fecha_abono": ac.fecha_abono,
                  "total_abono": ac.total_abono} for ac in archivos if ac.tipo == ArchivoCargado.TRANSBANK]
     if entradas and cartolas:
         resultados_abono = conciliar_abonos(entradas, movimientos, rango, params)
     else:
         resultados_abono = [{**e, "categoria": cat.ABONO_CARTOLA, "cartola_fecha": None, "cartola_descripcion": "",
-                             "cartola_monto": None, "diferencia": None,
+                             "cartola_monto": None, "cartola_indice": None, "diferencia": None,
                              "mensaje": "No se cargó cartola para verificar este abono."} for e in entradas]
+    usadas = {r["cartola_indice"] for r in resultados_abono if r["cartola_indice"] is not None}
+    MovimientoCartola.objects.bulk_create([MovimientoCartola(
+        conciliacion=conc, fecha=m["fecha"], descripcion=m["descripcion"], canal=m["canal"],
+        nro_docto=m["nro_docto"], cargo=m["cargo"], abono=m["abono"], saldo=m["saldo"],
+        es_transbank=m["abono"] > 0 and any(p in clave(m["descripcion"]) for p in patrones),
+        conciliado=i in usadas,
+    ) for i, m in enumerate(movimientos.to_dict("records"))])
     ResultadoAbono.objects.bulk_create([ResultadoAbono(
         conciliacion=conc, archivo_id=r["archivo_id"], medio=r["medio"], fecha_abono=r["fecha_abono"],
         total_abono=r["total_abono"], categoria=r["categoria"], cartola_fecha=r["cartola_fecha"],
@@ -322,7 +350,8 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
         r["n_falla"] += int(v.es_falla)
         valido_por_medio[v.medio] += v.monto_abono_valido
         matriz[v.categoria][v.medio]["n"] += 1
-        matriz[v.categoria][v.medio]["monto"] += v.monto_original
+        # Los montos de la matriz usan lo válido para abono, así suman exactamente "Ventas Transbank".
+        matriz[v.categoria][v.medio]["monto"] += v.monto_abono_valido
     for a in conc.abonos.all():
         r = por_medio[a.medio]
         r["abono_cartola"] += a.cartola_monto or 0
@@ -342,6 +371,7 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
         r["cuadratura"] = valido_por_medio[m] - r["ventas"]
 
     total = {k: sum(r[k] for r in por_medio.values()) for k in por_medio[cat.DEBITO]}
+    sin_archivo = cartola_sin_archivo(conc)
     return {
         "medios": por_medio,
         "total": total,
@@ -349,4 +379,11 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
         "n_pendientes": conc.pendientes.count(),
         "n_pendientes_cerrados": Pendiente.objects.filter(cierre=conc).count(),
         "n_invalidos_bordero": PagoBordero.objects.filter(id__in=pagos_del_mes, invalido=True).count(),
+        "cartola_sin_archivo": {"n": len(sin_archivo), "monto": sum(m.abono for m in sin_archivo)},
     }
+
+
+def cartola_sin_archivo(conc: Conciliacion) -> list[MovimientoCartola]:
+    """Abonos Transbank que llegaron al banco en el mes pero cuyo archivo Transbank no se cargó."""
+    return list(conc.movimientos_cartola.filter(es_transbank=True, conciliado=False, fecha__year=conc.anio,
+                                                fecha__month=conc.mes).order_by("fecha"))

@@ -10,6 +10,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table,
                                 TableStyle)
+from xml.sax.saxutils import escape
 
 from ..motor import categorias as cat
 from .datos import armar
@@ -139,8 +140,21 @@ def _seccion_resumen(d, h):
     texto = ("Los abonos de Transbank cuadran con la cartola (diferencial $0)." if dif == 0 else
              f"Diferencial total entre Transbank y cartola: {pesos(dif)}. Ver detalle por medio de pago.")
     h += [Spacer(1, 3 * mm), Paragraph(texto, E["normal"]),
+          Paragraph("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "
+                    "Ventas Transbank." if d["cuadra"] else
+                    "<b>La suma de las categorías no coincide con Ventas Transbank en algún medio.</b>", E["normal"]),
           Paragraph(f"Pendientes abiertos al cierre: {len(d['pendientes'])} · cerrados este mes: "
                     f"{d['n_pendientes_cerrados']}.", E["normal"])]
+    if d["cartola_sin_archivo"]:
+        total = sum(m.abono for m in d["cartola_sin_archivo"])
+        h += [Paragraph(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])} · "
+                        f"{pesos(total)})", E["h3"]),
+              Paragraph("Llegaron al banco en el mes pero no se cargó su archivo 'Abonos por día'; sus ventas no "
+                        "se pudieron verificar. Cargar los archivos de esas fechas.", E["suave"]),
+              _tabla([["Fecha", "Descripción en la cartola", "Medio probable", "Monto"]] +
+                     [[f"{m.fecha:%d/%m/%Y}", Paragraph(escape(m.descripcion), E["chico"]), m.medio_probable,
+                       pesos(m.abono)] for m in d["cartola_sin_archivo"]],
+                     [24 * mm, 120 * mm, 34 * mm, 30 * mm], numericas=(3,))]
 
 
 def _seccion_matriz(d, h):
@@ -166,11 +180,11 @@ def _tabla_ventas(ventas, con_mensaje=True):
     filas = [["Fecha", "Código", "Local", "Monto TBK", "Monto bordero", "Dif.", "Categoría", "Tipo"]
              + (["Qué hacer"] if con_mensaje else [])]
     for v in ventas:
-        fila = [f"{v.fecha_venta:%d/%m/%Y}", v.codigo_autorizacion, Paragraph(v.local, E["chico"]),
+        fila = [f"{v.fecha_venta:%d/%m/%Y}", v.codigo_autorizacion, Paragraph(escape(v.local), E["chico"]),
                 pesos(v.monto_original), pesos(v.monto_bordero), pesos(v.diferencia),
                 Paragraph(cat.ETIQUETA.get(v.categoria, ""), E["chico"]), _etiqueta_tipo(v.tipo)]
         if con_mensaje:
-            fila.append(Paragraph(v.mensaje, E["chico"]))
+            fila.append(Paragraph(escape(v.mensaje), E["chico"]))
         filas.append(fila)
     anchos = [18 * mm, 18 * mm, 30 * mm, 21 * mm, 21 * mm, 16 * mm, 32 * mm, 18 * mm]
     if con_mensaje:
@@ -189,7 +203,7 @@ def _seccion_capitulo(d, h, numero, medio):
     for a in cap["abonos"]:
         estado = "cuadra con la cartola" if a.categoria == cat.OK else "<b>no cuadra con la cartola</b>"
         h.append(Paragraph(f"Abono del {a.fecha_abono:%d/%m/%Y} por {pesos(a.total_abono)}: {estado}. "
-                           f"{a.mensaje}", E["normal"]))
+                           f"{escape(a.mensaje) if a.categoria != cat.OK else ''}", E["normal"]))
     h.append(Paragraph("Ventas con falla", E["h3"]))
     if cap["fallas"]:
         h.append(_tabla_ventas(cap["fallas"]))
@@ -227,7 +241,7 @@ def _seccion_pendientes(d, h):
         for p in d["pendientes"]:
             filas.append([f"{p.pago.fecha:%d/%m/%Y}", p.pago.cod_deb, cat.ETIQUETA_MEDIO[p.medio],
                           p.pago.documento, pesos(abs(p.pago.valor)), p.pago.cuenta, p.origen.etiqueta,
-                          Paragraph(p.observacion, E["chico"])])
+                          Paragraph(escape(p.observacion), E["chico"])])
         h.append(_tabla(filas, [22 * mm, 20 * mm, 20 * mm, 30 * mm, 26 * mm, 24 * mm, 30 * mm, 95 * mm],
                         numericas=(4,)))
     if d["invalidos_bordero"]:
@@ -255,7 +269,7 @@ def _seccion_parametros(d, h):
     for a in d["archivos"]:
         periodo = (f"abono {a.fecha_abono:%d/%m/%Y}" if a.fecha_abono else
                    f"{a.desde:%d/%m/%Y} a {a.hasta:%d/%m/%Y}" if a.desde else "-")
-        filas.append([Paragraph(a.nombre, E["chico"]), a.get_tipo_display(), a.get_medio_display(), periodo,
+        filas.append([Paragraph(escape(a.nombre), E["chico"]), a.get_tipo_display(), a.get_medio_display(), periodo,
                       entero(a.filas), pesos(a.total_abono) if a.total_abono is not None else "-"])
     h.append(_tabla(filas, [80 * mm, 26 * mm, 24 * mm, 50 * mm, 20 * mm, 32 * mm], numericas=(4, 5)))
 

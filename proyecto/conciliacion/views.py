@@ -58,6 +58,10 @@ def archivos(request, pk):
     if request.method == "POST":
         if "eliminar" in request.POST:
             ac = get_object_or_404(ArchivoCargado, pk=request.POST["eliminar"], conciliacion=conc)
+            if conc.estado == Conciliacion.PROCESADA:
+                servicio.reabrir(conc)
+                messages.warning(request, f"{conc.etiqueta} volvió a borrador: conciliala de nuevo para ver el "
+                                          "resultado con los archivos actuales.")
             ac.archivo.delete(save=False)
             ac.delete()
             messages.info(request, f"Se quitó {ac.nombre}.")

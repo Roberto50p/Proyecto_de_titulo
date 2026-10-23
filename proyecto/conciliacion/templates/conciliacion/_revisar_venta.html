@@ -1,6 +1,6 @@
 <form method="post" action="{% url 'conciliacion:revisar_venta' v.pk %}" class="revisar">
   {% csrf_token %}
-  <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+  <input type="hidden" name="volver" value="{{ request.get_full_path }}#v{{ v.pk }}">
   <label class="sr-only" for="obs-v{{ v.pk }}">Observación de {{ v.codigo_autorizacion }}</label>
   <textarea id="obs-v{{ v.pk }}" name="observacion" rows="2" placeholder="Observación">{{ v.observacion }}</textarea>
   <label class="check"><input type="checkbox" name="revisado"{% if v.revisado %} checked{% endif %}> Revisado</label>

@@ -115,3 +115,37 @@ def test_requiere_login_detalle(client, db):
     for nombre in ["archivos", "revision", "detalle", "pdf", "excel"]:
         r = client.get(reverse(f"conciliacion:{nombre}", args=[conc.pk]))
         assert r.status_code == 302 and r.url.startswith("/login/")
+
+
+def test_quitar_archivo_de_conciliacion_procesada_la_deja_en_borrador(cliente, septiembre_procesado):
+    from conciliacion.models import PagoBordero
+
+    debito = septiembre_procesado.archivos.get(medio="DEBITO")
+    cliente.post(reverse("conciliacion:archivos", args=[septiembre_procesado.pk]), {"eliminar": debito.pk})
+    septiembre_procesado.refresh_from_db()
+    assert septiembre_procesado.estado == Conciliacion.BORRADOR
+    assert not PagoBordero.objects.filter(conciliacion=septiembre_procesado).exists()
+    r = cliente.get(reverse("conciliacion:detalle", args=[septiembre_procesado.pk]))
+    assert r.status_code == 302
+
+
+def test_mismo_dia_y_medio_dos_veces_bloquea(cliente, datos_reales, tmp_path):
+    from openpyxl import load_workbook
+
+    nueva(cliente)
+    conc = Conciliacion.objects.get()
+    url = reverse("conciliacion:archivos", args=[conc.pk])
+    cliente.post(url, {"archivos": [subir(datos_reales, "PREPAGO TBK 08-09.xlsx")]})
+    libro = load_workbook(datos_reales / "PREPAGO TBK 08-09.xlsx")
+    libro.active["A1"] = "copia descargada otra vez"
+    copia = tmp_path / "PREPAGO otra vez.xlsx"
+    libro.save(copia)
+    cliente.post(url, {"archivos": [SimpleUploadedFile(copia.name, copia.read_bytes())]})
+    html = cliente.get(reverse("conciliacion:revision", args=[conc.pk])).content.decode()
+    assert "Hay 2 archivos Transbank de Prepago con abono del 08/09/2026" in html
+
+
+def test_revisar_vuelve_a_la_misma_fila(cliente, septiembre_procesado):
+    v = septiembre_procesado.ventas.get(codigo_autorizacion="007626")
+    html = cliente.get(reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) + "?vista=DEBITO").content.decode()
+    assert f'id="v{v.pk}"' in html and f'#v{v.pk}"' in html

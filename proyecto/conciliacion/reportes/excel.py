@@ -111,6 +111,16 @@ def _resumen(libro, d):
              for f in d["matriz"]]
     h.tabla(columnas, filas, montos=["Monto total"], color_tipo_col="Tipo")
     h.texto("Red Compra (RCO) puede ser débito o prepago; sus pendientes se muestran bajo Débito.")
+    h.texto("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a Ventas Transbank."
+            if d["cuadra"] else "ATENCIÓN: la suma de las categorías no coincide con Ventas Transbank.",
+            negrita=not d["cuadra"])
+    if d["cartola_sin_archivo"]:
+        h.salto()
+        h.texto(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])}): cargar los archivos "
+                "'Abonos por día' de esas fechas.", negrita=True, color="#B42318")
+        h.tabla(["Fecha", "Descripción en la cartola", "Medio probable", "Monto"],
+                [[m.fecha, m.descripcion, m.medio_probable, m.abono] for m in d["cartola_sin_archivo"]],
+                montos=["Monto"], fechas=["Fecha"])
 
 
 def _capitulo(libro, d, medio):
