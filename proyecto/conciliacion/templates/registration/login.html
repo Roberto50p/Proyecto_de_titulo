@@ -1,0 +1,21 @@
+{% extends "conciliacion/base.html" %}
+{% block titulo %}Ingresar{% endblock %}
+{% block cuerpo %}
+<main class="acceso">
+  <section class="acceso-caja">
+    <p class="marca-sub">Hotelera San Francisco S.A. · Administración y Finanzas</p>
+    <h1>Conciliación de ventas con tarjeta</h1>
+    <p class="ayuda">Cruza el bordero del hotel con los abonos de Transbank y la cartola del Banco de Chile.</p>
+    <form method="post" class="formulario">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<p class="error" role="alert">Usuario o contraseña incorrectos.</p>{% endif %}
+      <label for="id_username">Usuario</label>
+      <input type="text" name="username" id="id_username" autocomplete="username" required autofocus value="{{ form.username.value|default:'' }}">
+      <label for="id_password">Contraseña</label>
+      <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="boton boton-principal">Ingresar</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

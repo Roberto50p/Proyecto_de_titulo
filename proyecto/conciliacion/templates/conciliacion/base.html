@@ -1,0 +1,41 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Conciliación{% endblock %} · Hotel Plaza San Francisco</title>
+  <link rel="stylesheet" href="{% static 'conciliacion/app.css' %}">
+</head>
+<body>
+{% block cuerpo %}
+<div class="app">
+  <aside class="lateral" aria-label="Menú principal">
+    <a class="marca" href="{% url 'conciliacion:inicio' %}">
+      <span class="marca-nombre">Conciliación</span>
+      <span class="marca-sub">Hotel Plaza San Francisco</span>
+    </a>
+    <nav>
+      {% with ruta=request.resolver_match.url_name %}
+      <a href="{% url 'conciliacion:nueva' %}" class="{% if ruta == 'nueva' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}">Nueva conciliación</a>
+      <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}">Conciliaciones</a>
+      <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}">Pendientes abiertos</a>
+      <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}">Parámetros</a>
+      {% endwith %}
+    </nav>
+    <div class="usuario">
+      <span>{{ user.get_full_name|default:user.username }}</span>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" class="enlace">Cerrar sesión</button></form>
+    </div>
+  </aside>
+  <main class="contenido">
+    {% if messages %}
+      <div class="mensajes">
+        {% for m in messages %}<p class="mensaje mensaje-{{ m.tags }}" role="status">{{ m }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+</body>
+</html>

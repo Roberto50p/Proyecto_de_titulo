@@ -1,0 +1,14 @@
+{% extends "conciliacion/base.html" %}
+{% block titulo %}Conciliaciones{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <h1>Conciliaciones</h1>
+  <a class="boton boton-principal" href="{% url 'conciliacion:nueva' %}">Nueva conciliación</a>
+</header>
+{% if not conciliaciones %}
+  <section class="vacio">
+    <p>Aún no hay conciliaciones.</p>
+    <p class="ayuda">Empieza eligiendo el mes de abono y subiendo el bordero, la cartola y los archivos de Transbank.</p>
+  </section>
+{% endif %}
+{% endblock %}
