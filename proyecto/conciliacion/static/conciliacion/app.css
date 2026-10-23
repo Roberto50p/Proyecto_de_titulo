@@ -45,6 +45,7 @@ body {
 a { color: var(--debito); }
 h1 { font-size: 1.6rem; line-height: 1.25; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 h2 { font-size: 1.15rem; margin: 0 0 .75rem; font-weight: 650; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
 h3 { font-size: 1rem; margin: 0 0 .5rem; font-weight: 650; }
 .ayuda { color: var(--tinta-suave); margin: .25rem 0; }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }

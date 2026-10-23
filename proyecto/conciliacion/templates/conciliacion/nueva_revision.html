@@ -1,0 +1,54 @@
+{% extends "conciliacion/base.html" %}
+{% load conciliacion_extras %}
+{% block titulo %}Revisión · {{ conc.etiqueta }}{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <h1>Revisión de lectura · {{ conc.etiqueta }}</h1>
+    <p class="ayuda">Confirma que cada archivo se entendió bien antes de conciliar.</p>
+  </div>
+</header>
+{% include "conciliacion/_pasos.html" %}
+
+{% if errores %}
+<section class="bloque" role="alert">
+  <h2 class="error">Hay que corregir antes de conciliar</h2>
+  <ul>{% for e in errores %}<li>{{ e }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+{% if avisos %}
+<section class="bloque">
+  <h2>Para tener en cuenta</h2>
+  <ul>{% for a in avisos %}<li>{{ a }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<div class="tabla-envoltura" style="margin-bottom:1.5rem">
+  <table>
+    <thead><tr><th>Archivo</th><th>Tipo</th><th>Medio de pago</th><th>Cuenta / moneda</th><th>Período o abono</th><th class="num">Filas</th><th class="num">Total abono</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for a in archivos %}
+      <tr{% if a.medio %} class="fila-medio-{{ a.medio }}"{% endif %}>
+        <td>{{ a.nombre }}</td>
+        <td>{{ a.get_tipo_display }}</td>
+        <td>{% if a.medio %}<span class="medio medio-{{ a.medio }}">{{ a.get_medio_display }}</span>{% else %}-{% endif %}</td>
+        <td>{{ a.cuenta|default:"-" }}{% if a.moneda %} · {{ a.moneda }}{% endif %}</td>
+        <td>{% if a.fecha_abono %}Abono {{ a.fecha_abono|date:"d/m/Y" }} · ventas {{ a.desde|date:"d/m" }} a {{ a.hasta|date:"d/m" }}{% elif a.desde %}{{ a.desde|date:"d/m/Y" }} al {{ a.hasta|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+        <td class="num">{{ a.filas|miles }}</td>
+        <td class="num">{{ a.total_abono|pesos }}</td>
+        <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8">No hay archivos cargados.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<form method="post" action="{% url 'conciliacion:procesar' conc.pk %}" class="acciones">
+  {% csrf_token %}
+  <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Volver a archivos</a>
+  <button type="submit" name="procesar" class="boton boton-principal" {% if errores %}disabled aria-disabled="true"{% endif %}>Conciliar {{ conc.etiqueta }}</button>
+  {% if conc.estado == "PROCESADA" %}<span class="ayuda">Reemplaza el resultado anterior; se conservan tus observaciones.</span>{% endif %}
+</form>
+{% endblock %}

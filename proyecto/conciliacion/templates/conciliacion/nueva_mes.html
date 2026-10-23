@@ -1,0 +1,42 @@
+{% extends "conciliacion/base.html" %}
+{% block titulo %}Nueva conciliación{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <h1>Nueva conciliación</h1>
+    <p class="ayuda">El mes se cierra por fecha de abono: elige el mes en que Transbank depositó en el banco.</p>
+  </div>
+</header>
+{% include "conciliacion/_pasos.html" %}
+
+{% if existente %}
+<section class="bloque" role="alert">
+  <h2>{{ existente.etiqueta }} ya fue conciliado</h2>
+  <p>Si continúas podrás cambiar sus archivos y volver a procesarlo. El resultado anterior se reemplaza; las observaciones que escribiste se conservan.</p>
+  <form method="post" class="acciones">
+    {% csrf_token %}
+    <input type="hidden" name="anio" value="{{ existente.anio }}">
+    <input type="hidden" name="mes" value="{{ existente.mes }}">
+    <button type="submit" name="confirmar" value="1" class="boton boton-principal">Confirmar y reemplazar</button>
+    <a class="boton" href="{% url 'conciliacion:detalle' existente.pk %}">Ver resultado actual</a>
+  </form>
+</section>
+{% else %}
+<form method="post" class="bloque" novalidate>
+  {% csrf_token %}
+  <div class="fila-campos">
+    <div class="campo">
+      <label for="{{ form.mes.id_for_label }}">{{ form.mes.label }}</label>
+      {{ form.mes }}
+      {% for e in form.mes.errors %}<p class="error">{{ e }}</p>{% endfor %}
+    </div>
+    <div class="campo">
+      <label for="{{ form.anio.id_for_label }}">{{ form.anio.label }}</label>
+      {{ form.anio }}
+      {% for e in form.anio.errors %}<p class="error">{{ e }}</p>{% endfor %}
+    </div>
+  </div>
+  <div class="acciones"><button type="submit" class="boton boton-principal">Continuar a archivos</button></div>
+</form>
+{% endif %}
+{% endblock %}

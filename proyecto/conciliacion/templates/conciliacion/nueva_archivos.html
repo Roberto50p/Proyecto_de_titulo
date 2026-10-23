@@ -1,0 +1,54 @@
+{% extends "conciliacion/base.html" %}
+{% load conciliacion_extras %}
+{% block titulo %}Archivos · {{ conc.etiqueta }}{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <h1>Archivos de {{ conc.etiqueta }}</h1>
+    <p class="ayuda">Sube el bordero, la cartola y los reportes Transbank "Abonos por día". El sistema reconoce cada archivo por su contenido; el nombre no importa.</p>
+  </div>
+</header>
+{% include "conciliacion/_pasos.html" %}
+
+<form method="post" enctype="multipart/form-data" class="bloque">
+  {% csrf_token %}
+  <div class="zona-carga">
+    <label for="archivos"><strong>Elegir archivos Excel</strong></label>
+    <p class="ayuda">Puedes seleccionar varios a la vez: bordero (uno o más), cartola del Banco de Chile y un archivo Transbank por medio de pago y día de abono.</p>
+    <input type="file" id="archivos" name="archivos" multiple accept=".xlsx,.xls">
+  </div>
+  <div class="acciones" style="margin-top:1rem"><button type="submit" class="boton boton-principal">Subir archivos</button></div>
+</form>
+
+<section class="bloque">
+  <h2>Archivos cargados</h2>
+  {% if archivos %}
+  <div class="tabla-envoltura">
+    <table>
+      <thead><tr><th>Archivo</th><th>Se leyó como</th><th>Período o abono</th><th class="num">Filas</th><th>Estado</th><th><span class="sr-only">Quitar</span></th></tr></thead>
+      <tbody>
+      {% for a in archivos %}
+        <tr{% if a.medio %} class="fila-medio-{{ a.medio }}"{% endif %}>
+          <td>{{ a.nombre }}</td>
+          <td>{{ a.get_tipo_display }}{% if a.medio %} · <span class="medio medio-{{ a.medio }}">{{ a.get_medio_display }}</span>{% endif %}</td>
+          <td>{% if a.fecha_abono %}Abono {{ a.fecha_abono|date:"d/m/Y" }}{% elif a.desde %}{{ a.desde|date:"d/m/Y" }} al {{ a.hasta|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+          <td class="num">{{ a.filas|miles }}</td>
+          <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
+          <td>
+            <form method="post">{% csrf_token %}<button type="submit" name="eliminar" value="{{ a.pk }}" class="boton boton-peligro" aria-label="Quitar {{ a.nombre }}">Quitar</button></form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="ayuda">Todavía no hay archivos.</p>
+  {% endif %}
+</section>
+
+<div class="acciones">
+  <a class="boton" href="{% url 'conciliacion:nueva' %}">Volver</a>
+  <a class="boton boton-principal" href="{% url 'conciliacion:revision' conc.pk %}">Continuar a revisión</a>
+</div>
+{% endblock %}

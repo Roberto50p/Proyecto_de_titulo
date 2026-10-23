@@ -1,0 +1,3 @@
+<ol class="pasos" aria-label="Pasos de la conciliación">
+  {% for p in pasos %}<li class="{{ p.estado }}"{% if p.estado == "actual" %} aria-current="step"{% endif %}>{{ p.numero }}. {{ p.nombre }}</li>{% endfor %}
+</ol>
