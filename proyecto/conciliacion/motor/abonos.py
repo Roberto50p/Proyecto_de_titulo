@@ -27,6 +27,11 @@ def cuadratura_archivo(resumen: dict) -> int:
     return calculado - resumen.get("total_abono", 0)
 
 
+def cuadratura_por_medio(resumen: dict, por_medio: dict[str, dict]) -> int:
+    """Diferencia entre la suma del Total abono separado por medio de pago y el del archivo (0 si cuadra)."""
+    return sum(r["total_abono"] for r in por_medio.values()) - resumen.get("total_abono", 0)
+
+
 def conciliar_abonos(abonos: list[dict], cartola: pd.DataFrame, cartola_rango: tuple[date, date],
                      params: Parametros) -> list[dict]:
     patrones = [clave(p) for p in params.patrones_cartola]
