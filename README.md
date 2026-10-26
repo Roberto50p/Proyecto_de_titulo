@@ -11,14 +11,18 @@ El mes se cierra por **fecha de abono**. El resultado muestra las discrepancias 
 Diseño: `docs/superpowers/specs/2026-10-23-conciliacion-mensual-design.md` · Plan: `docs/superpowers/plans/2026-10-23-conciliacion-mensual.md`.
 
 ## Instalación (Windows)
-
+Ambiente para las herramientas de desarrollo
 ```bat
 cd proyecto
-py -3 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python manage.py migrate
-.venv\Scripts\python manage.py createsuperuser
-.venv\Scripts\python manage.py runserver
+py -3.14 -m venv .venv
+.venv\Scripts\activate
+```
+Instalación de las herramientas
+```bat
+py -m pip install -r requirements.txt
+py manage.py migrate
+py manage.py createsuperuser
+py manage.py runserver
 ```
 
 Luego abrir http://127.0.0.1:8000 e ingresar con el usuario creado. También sirve `ejecutar_proyecto.bat` (migra y levanta el servidor).
