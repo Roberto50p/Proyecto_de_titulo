@@ -25,11 +25,11 @@ from .models import (
     VentaTransbank,
 )
 from .motor import categorias as cat
-from .motor.abonos import conciliar_abonos, cuadratura_archivo
+from .motor.abonos import conciliar_abonos, cuadratura_archivo, cuadratura_por_medio
 from .motor.cruce import conciliar_ventas, pagos_tarjeta
 from .motor.mensajes import fecha as fmt_fecha
 from .motor.mensajes import mensaje, pesos
-from .motor.parametros import Parametros
+from .motor.parametros import Parametros, leer_reglas_medio
 
 
 def parametros_actuales() -> Parametros:
@@ -44,6 +44,8 @@ def parametros_actuales() -> Parametros:
         ventana_dias=p.ventana_dias,
         patrones_cartola=tuple(x.strip() for x in p.patrones_cartola.split(",") if x.strip()),
         equivalencias={k: frozenset(v) for k, v in equivalencias.items()},
+        reglas_medio_cartola=leer_reglas_medio(p.reglas_medio_cartola),
+        omitir_moneda_extranjera=p.omitir_moneda_extranjera,
     )
 
 
@@ -58,37 +60,52 @@ def sha256_de(archivo) -> str:
 # ---------------------------------------------------------------- lectura y validación
 
 
+def _error_transbank(a) -> str:
+    """Problemas del contenido de un archivo Transbank en pesos ('' si está bien)."""
+    if a.fecha_abono != a.fecha_abono_hasta:
+        return "El archivo abarca varios días de abono; descarga un reporte por día desde Transbank."
+    if dif := cuadratura_archivo(a.resumen):
+        return (f"El resumen del archivo no cuadra: Total abono {pesos(a.resumen['total_abono'])} "
+                f"no coincide con ventas menos comisiones (diferencia {pesos(dif)}).")
+    if dif := cuadratura_por_medio(a.resumen, a.resumen_por_medio):
+        return (f"El archivo trae todos los medios de pago, pero el detalle por medio no suma el Total abono "
+                f"(diferencia {pesos(dif)}). Descarga desde Transbank un archivo por medio de pago.")
+    return ""
+
+
 def leer_archivo(ac: ArchivoCargado) -> None:
-    """Detecta el tipo del archivo y guarda sus metadatos (o el error de lectura)."""
+    """Detecta el tipo del archivo y guarda sus metadatos (o el error de lectura).
+
+    La moneda no se valida aquí: depende del parámetro "Omitir archivos en moneda extranjera" (ver validar).
+    """
     ruta = ac.archivo.path
-    ac.error = ""
+    ac.error, ac.medio, ac.por_medio, ac.banco = "", "", {}, ""
     try:
         ac.tipo = detectar(ruta)
         if ac.tipo == ArchivoCargado.TRANSBANK:
             a = leer_transbank(ruta)
-            ac.medio, ac.moneda, ac.cuenta = a.medio, a.moneda, a.cuenta
+            ac.medio, ac.por_medio, ac.moneda, ac.cuenta = a.medio or "", a.resumen_por_medio, a.moneda, a.cuenta
             ac.fecha_abono, ac.desde, ac.hasta = a.fecha_abono, a.ventas.fecha_venta.min(), a.ventas.fecha_venta.max()
             ac.filas, ac.total_abono, ac.resumen = len(a.ventas), a.resumen["total_abono"], a.resumen
-            if clave(a.moneda) != "pesos":
-                ac.error = f"Moneda no soportada ({a.moneda}). Esta versión concilia abonos en pesos."
-            elif a.fecha_abono != a.fecha_abono_hasta:
-                ac.error = "El archivo abarca varios días de abono; descarga un reporte por día desde Transbank."
-            elif cuadratura_archivo(a.resumen):
-                ac.error = (f"El resumen del archivo no cuadra: Total abono {pesos(a.resumen['total_abono'])} "
-                            f"no coincide con ventas menos comisiones (diferencia {pesos(cuadratura_archivo(a.resumen))}).")
+            if not ac.moneda_extranjera:
+                ac.error = _error_transbank(a)
         elif ac.tipo == ArchivoCargado.BORDERO:
             b = leer_bordero(ruta)
             ac.desde, ac.hasta, ac.filas = b.desde, b.hasta, len(b.movimientos)
         else:
             c = leer_cartola(ruta)
-            ac.cuenta, ac.moneda, ac.desde, ac.hasta, ac.filas = c.cuenta, c.moneda, c.desde, c.hasta, len(c.movimientos)
-            if not clave(c.moneda).startswith("pesos"):
-                ac.error = f"Moneda no soportada ({c.moneda}). Esta versión concilia la cartola en pesos."
+            ac.banco, ac.cuenta, ac.moneda = c.banco, c.cuenta, c.moneda
+            ac.desde, ac.hasta, ac.filas = c.desde, c.hasta, len(c.movimientos)
     except ArchivoNoReconocido as exc:
         ac.tipo, ac.error = ArchivoCargado.DESCONOCIDO, str(exc)
     except Exception as exc:  # archivo con el formato esperado pero dañado
         ac.tipo, ac.error = ArchivoCargado.DESCONOCIDO, f"No se pudo leer el archivo: {exc}"
     ac.save()
+
+
+def utilizables(conc: Conciliacion) -> list[ArchivoCargado]:
+    """Archivos que entran a la conciliación: sin error de lectura y en pesos."""
+    return [a for a in conc.archivos.all() if not a.error and not a.moneda_extranjera]
 
 
 def validar(conc: Conciliacion) -> list[str]:
@@ -98,29 +115,38 @@ def validar(conc: Conciliacion) -> list[str]:
     for a in archivos:
         if a.error:
             errores.append(f"{a.nombre}: {a.error}")
-    tipos = {a.tipo for a in archivos if not a.error}
+    if not ParametrosSistema.cargar().omitir_moneda_extranjera:
+        for a in archivos:
+            if not a.error and a.moneda_extranjera:
+                errores.append(f"{a.nombre}: moneda no soportada ({a.moneda or 'no informada'}). Esta versión concilia "
+                               "en pesos: quita el archivo o activa 'Omitir archivos en moneda extranjera' en Parámetros.")
+    validos = utilizables(conc)
+    tipos = {a.tipo for a in validos}
     for tipo, nombre in [(ArchivoCargado.BORDERO, "el bordero"), (ArchivoCargado.CARTOLA, "la cartola"),
                          (ArchivoCargado.TRANSBANK, "al menos un archivo Transbank")]:
         if tipo not in tipos:
             errores.append(f"Falta {nombre}.")
-    for a in archivos:
-        if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and not a.error:
-            if (a.fecha_abono.year, a.fecha_abono.month) != (conc.anio, conc.mes):
-                errores.append(f"{a.nombre}: la fecha de abono {fmt_fecha(a.fecha_abono)} no pertenece a "
-                               f"{conc.etiqueta}.")
-    repetidos = Counter((a.medio, a.fecha_abono) for a in archivos
-                        if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and not a.error)
+    transbank = [a for a in validos if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono]
+    for a in transbank:
+        if (a.fecha_abono.year, a.fecha_abono.month) != (conc.anio, conc.mes):
+            errores.append(f"{a.nombre}: la fecha de abono {fmt_fecha(a.fecha_abono)} no pertenece a "
+                           f"{conc.etiqueta}.")
+    # Un archivo con todos los medios cuenta para cada medio que trae.
+    repetidos = Counter((medio, a.fecha_abono) for a in transbank for medio in a.por_medio)
     for (medio, dia), n in repetidos.items():
         if n > 1:
             errores.append(f"Hay {n} archivos Transbank de {cat.ETIQUETA_MEDIO[medio]} con abono del {fmt_fecha(dia)}; "
-                           "quita el repetido.")
+                           "quita el repetido (un archivo con todos los medios incluye cada medio).")
     return errores
 
 
 def advertencias(conc: Conciliacion) -> list[str]:
     """Situaciones que no impiden conciliar pero conviene saber."""
     avisos = []
-    archivos = [a for a in conc.archivos.all() if not a.error]
+    if ParametrosSistema.cargar().omitir_moneda_extranjera:
+        avisos += [f"{a.nombre}: está en {a.moneda or 'moneda no informada'}; se omite (esta versión concilia en "
+                   "pesos)." for a in conc.archivos.all() if not a.error and a.moneda_extranjera]
+    archivos = utilizables(conc)
     borderos = [(a.desde, a.hasta) for a in archivos if a.tipo == ArchivoCargado.BORDERO]
     borderos += [(c.desde, c.hasta) for c in CoberturaBordero.objects.all()]
     for a in archivos:
@@ -139,34 +165,86 @@ def advertencias(conc: Conciliacion) -> list[str]:
 # ---------------------------------------------------------------- procesamiento
 
 
-def _deshacer(conc: Conciliacion) -> dict:
-    """Revierte el resultado anterior de la conciliación y devuelve las observaciones a conservar.
+def _clave_venta(categoria, codigo, fecha_venta) -> str:
+    return f"{categoria}|{codigo}|{fecha_venta.isoformat()}"
+
+
+def _clave_abono(medio, fecha_abono) -> str:
+    # Sin el archivo: la observación se mantiene aunque se reemplace el archivo Transbank del mismo día.
+    return f"{medio}|{fecha_abono.isoformat()}"
+
+
+def _guardar_observaciones(conc: Conciliacion) -> None:
+    """Lleva a conc.observaciones lo revisado/observado del resultado actual, sin perder lo guardado antes para
+    filas que hoy no están (por ejemplo, ventas de un archivo que se quitó y se volverá a subir)."""
+    guardadas = conc.observaciones or {}
+    filas = [
+        ("ventas", conc.ventas.all(), lambda v: _clave_venta(v.categoria, v.codigo_autorizacion, v.fecha_venta)),
+        ("abonos", conc.abonos.all(), lambda r: _clave_abono(r.medio, r.fecha_abono)),
+        ("pendientes", conc.pendientes.all(), lambda p: str(p.pago_id)),
+    ]
+    for grupo, registros, clave_de in filas:
+        grupo_guardado = guardadas.setdefault(grupo, {})
+        for r in registros:
+            if r.revisado or r.observacion:
+                grupo_guardado[clave_de(r)] = [r.revisado, r.observacion]
+            else:
+                grupo_guardado.pop(clave_de(r), None)
+    conc.observaciones = guardadas
+
+
+def _observacion(conc: Conciliacion, grupo: str, clave_registro: str) -> dict:
+    revisado, observacion = conc.observaciones.get(grupo, {}).get(clave_registro, (False, ""))
+    return {"revisado": revisado, "observacion": observacion}
+
+
+def _deshacer(conc: Conciliacion) -> None:
+    """Revierte el resultado anterior de la conciliación; sus observaciones quedan en conc.observaciones.
 
     Los pendientes que ya cerró un mes posterior se mantienen: su historia pertenece a ese mes.
     """
-    guardado = {
-        "ventas": {(v.categoria, v.codigo_autorizacion, v.fecha_venta): (v.revisado, v.observacion)
-                   for v in conc.ventas.all() if v.revisado or v.observacion},
-        "abonos": {r.archivo_id: (r.revisado, r.observacion)
-                   for r in conc.abonos.all() if r.revisado or r.observacion},
-        "pendientes": {p.pago_id: (p.revisado, p.observacion)
-                       for p in conc.pendientes.all() if p.revisado or p.observacion},
-    }
+    _guardar_observaciones(conc)
     Pendiente.objects.filter(cierre=conc).update(abierto=True, cierre=None)
     conc.pendientes.filter(cierre__isnull=True).delete()
     PagoBordero.objects.filter(conciliacion=conc).update(conciliacion=None)
     conc.ventas.all().delete()
     conc.abonos.all().delete()
     conc.movimientos_cartola.all().delete()
-    return guardado
 
 
 def reabrir(conc: Conciliacion) -> None:
-    """Deja una conciliación procesada otra vez en borrador (por ejemplo, al quitar un archivo)."""
+    """Deja una conciliación procesada otra vez en borrador (al agregar o quitar archivos)."""
     with transaction.atomic():
         _deshacer(conc)
         conc.estado, conc.resumen, conc.procesada_en = Conciliacion.BORRADOR, {}, None
         conc.save()
+
+
+@transaction.atomic
+def quitar_archivo(ac: ArchivoCargado) -> None:
+    """Quita un archivo de la conciliación; si estaba procesada vuelve a borrador.
+
+    Un bordero se lleva su cobertura y los pagos que solo venían en él, salvo que otra conciliación los haya usado
+    o dejado como pendientes: esa historia pertenece a ese mes.
+    """
+    conc = ac.conciliacion
+    if conc.estado == Conciliacion.PROCESADA:
+        reabrir(conc)
+    if ac.tipo == ArchivoCargado.BORDERO:
+        CoberturaBordero.objects.filter(archivo=ac).delete()
+        ids = list(ac.pagos.values_list("id", flat=True))
+        ac.pagos.clear()
+        PagoBordero.objects.filter(id__in=ids, archivos__isnull=True, conciliacion__isnull=True,
+                                   pendiente__isnull=True).delete()
+    ac.archivo.delete(save=False)
+    ac.delete()
+
+
+def quitar_todos(conc: Conciliacion) -> None:
+    """Deja la conciliación sin archivos para volver a conciliar el mismo mes con otros."""
+    with transaction.atomic():
+        for ac in list(conc.archivos.all()):
+            quitar_archivo(ac)
 
 
 def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:
@@ -184,13 +262,14 @@ def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:
         pago, creado = PagoBordero.objects.get_or_create(
             fecha=fila["fecha"], hora=fila["hora"], cuenta=fila["cuenta"], cod_deb=fila["cod_deb"],
             defaults={k: fila[k] for k in ["hab", "reserva", "descripcion", "factura", "usuario", "designacion"]}
-            | corregibles | {"archivo": ac},
+            | corregibles,
         )
         if not creado and any(getattr(pago, k) != v for k, v in corregibles.items()):
             for k, v in corregibles.items():
                 setattr(pago, k, v)
             pago.save(update_fields=list(corregibles))
         ids.append(pago.id)
+    ac.pagos.add(*ids)
     return ids
 
 
@@ -201,9 +280,9 @@ def _medio_de_pago(cod_deb: str, params: Parametros) -> str:
 
 @transaction.atomic
 def procesar(conc: Conciliacion) -> Conciliacion:
-    guardado = _deshacer(conc)
+    _deshacer(conc)
     params = parametros_actuales()
-    archivos = [a for a in conc.archivos.all() if not a.error]
+    archivos = utilizables(conc)
 
     # Bordero: registrar pagos (sin duplicar) y su cobertura.
     pagos_del_mes = set()
@@ -257,8 +336,8 @@ def procesar(conc: Conciliacion) -> Conciliacion:
                 v.monto_bordero, v.diferencia = int(r["monto_bordero"]), int(r["diferencia"])
     _cuotas_anteriores(conc, ventas_obj)
     for v in ventas_obj:
-        v.revisado, v.observacion = guardado["ventas"].get((v.categoria, v.codigo_autorizacion, v.fecha_venta),
-                                                           (False, ""))
+        guardada = _observacion(conc, "ventas", _clave_venta(v.categoria, v.codigo_autorizacion, v.fecha_venta))
+        v.revisado, v.observacion = guardada["revisado"], guardada["observacion"]
     VentaTransbank.objects.bulk_create(ventas_obj)
 
     # Pagos usados quedan conciliados en este mes; si eran pendientes, se cierran.
@@ -275,8 +354,9 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         movimientos = pd.DataFrame(columns=["fecha", "descripcion", "canal", "nro_docto", "cargo", "abono", "saldo"])
         rango = (None, None)
     patrones = [clave(p) for p in params.patrones_cartola]
-    entradas = [{"archivo_id": ac.id, "medio": ac.medio, "fecha_abono": ac.fecha_abono,
-                 "total_abono": ac.total_abono} for ac in archivos if ac.tipo == ArchivoCargado.TRANSBANK]
+    entradas = [{"archivo_id": ac.id, "medio": medio, "fecha_abono": ac.fecha_abono,
+                 "total_abono": r["total_abono"]}
+                for ac in archivos if ac.tipo == ArchivoCargado.TRANSBANK for medio, r in ac.por_medio.items()]
     if entradas and cartolas:
         resultados_abono = conciliar_abonos(entradas, movimientos, rango, params)
     else:
@@ -287,7 +367,8 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     MovimientoCartola.objects.bulk_create([MovimientoCartola(
         conciliacion=conc, fecha=m["fecha"], descripcion=m["descripcion"], canal=m["canal"],
         nro_docto=m["nro_docto"], cargo=m["cargo"], abono=m["abono"], saldo=m["saldo"],
-        es_transbank=m["abono"] > 0 and any(p in clave(m["descripcion"]) for p in patrones),
+        es_transbank=(es_tbk := m["abono"] > 0 and any(p in clave(m["descripcion"]) for p in patrones)),
+        medio_probable=params.medio_probable(m["descripcion"]) if es_tbk else "",
         conciliado=i in usadas,
     ) for i, m in enumerate(movimientos.to_dict("records"))])
     ResultadoAbono.objects.bulk_create([ResultadoAbono(
@@ -295,8 +376,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         total_abono=r["total_abono"], categoria=r["categoria"], cartola_fecha=r["cartola_fecha"],
         cartola_descripcion=r["cartola_descripcion"], cartola_monto=r["cartola_monto"],
         diferencia=r["diferencia"], mensaje=r["mensaje"],
-        revisado=guardado["abonos"].get(r["archivo_id"], (False, ""))[0],
-        observacion=guardado["abonos"].get(r["archivo_id"], (False, ""))[1],
+        **_observacion(conc, "abonos", _clave_abono(r["medio"], r["fecha_abono"])),
     ) for r in resultados_abono])
 
     # Pagos del bordero de este mes que siguen sin abono → pendientes.
@@ -306,8 +386,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         pago=p, medio=_medio_de_pago(p.cod_deb, params), origen=conc,
         mensaje=mensaje(cat.SIN_ABONO, cod_deb=p.cod_deb, fecha_bordero=fmt_fecha(p.fecha),
                         monto_bordero=pesos(abs(p.valor)), documento=p.documento or "(vacío)"),
-        revisado=guardado["pendientes"].get(p.id, (False, ""))[0],
-        observacion=guardado["pendientes"].get(p.id, (False, ""))[1],
+        **_observacion(conc, "pendientes", str(p.id)),
     ) for p in sin_abono])
 
     conc.parametros = params.a_dict()
@@ -337,12 +416,15 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
                      "n_ventas": 0, "n_falla": 0, "n_archivos": 0, "cuadratura": 0} for m in cat.MEDIOS}
     matriz = {k: {m: {"n": 0, "monto": 0} for m in cat.MEDIOS} for k in cat.ORDEN_CATEGORIAS}
 
-    for ac in conc.archivos.filter(tipo=ArchivoCargado.TRANSBANK, error=""):
-        r = por_medio[ac.medio]
-        r["ventas"] += ac.resumen.get("total_ventas", 0)
-        r["comision_iva"] += ac.resumen.get("comision", 0) + ac.resumen.get("iva_comision", 0)
-        r["abono_tbk"] += ac.total_abono or 0
-        r["n_archivos"] += 1
+    for ac in utilizables(conc):
+        if ac.tipo != ArchivoCargado.TRANSBANK:
+            continue
+        for medio, datos in ac.por_medio.items():
+            r = por_medio[medio]
+            r["ventas"] += datos["total_ventas"]
+            r["comision_iva"] += datos["comision"] + datos["iva_comision"]
+            r["abono_tbk"] += datos["total_abono"]
+            r["n_archivos"] += 1
     valido_por_medio = defaultdict(int)
     for v in conc.ventas.filter(es_venta=True):
         r = por_medio[v.medio]
