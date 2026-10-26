@@ -25,16 +25,8 @@
 <form method="post" class="bloque" novalidate>
   {% csrf_token %}
   <div class="fila-campos">
-    <div class="campo">
-      <label for="{{ form.mes.id_for_label }}">{{ form.mes.label }}</label>
-      {{ form.mes }}
-      {% for e in form.mes.errors %}<p class="error">{{ e }}</p>{% endfor %}
-    </div>
-    <div class="campo">
-      <label for="{{ form.anio.id_for_label }}">{{ form.anio.label }}</label>
-      {{ form.anio }}
-      {% for e in form.anio.errors %}<p class="error">{{ e }}</p>{% endfor %}
-    </div>
+    {% include "conciliacion/_campo.html" with campo=form.mes %}
+    {% include "conciliacion/_campo.html" with campo=form.anio %}
   </div>
   <div class="acciones"><button type="submit" class="boton boton-principal">Continuar a archivos</button></div>
 </form>

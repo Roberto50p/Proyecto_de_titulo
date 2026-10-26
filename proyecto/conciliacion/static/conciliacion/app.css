@@ -1,6 +1,7 @@
 /* Conciliación HPSF — hoja de estilos.
    Idea: la interfaz es sobria como un libro contable; el único color fuerte
-   es el de cada medio de pago, que se repite igual en pantalla, PDF y Excel. */
+   es el de cada medio de pago, que se repite igual en pantalla, PDF y Excel.
+   Ritmo vertical: los espacios salen de --espacio (1rem) y sus mitades/dobles. */
 
 :root {
   --tinta: #1b2430;
@@ -10,6 +11,7 @@
   --papel: #ffffff;
   --fondo: #f1f3f6;
   --lateral: #18212c;
+  --borde-campo: #b9c2cd;
 
   --debito: #1f5fa8;
   --debito-fondo: #e8f0fa;
@@ -28,36 +30,44 @@
   --aviso: #5b6675;
   --aviso-fondo: #f4f5f7;
   --ok: #2f7d4f;
+  --ok-fondo: #edf8f1;
 
   --radio: 6px;
+  --espacio: 1rem;
+  --alto-control: 44px;
+  --alto-control-tabla: 34px;
+  --ancho-lateral: 240px;
   --fuente: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
+/* ------------------------------------------------------------ base */
 * { box-sizing: border-box; }
 html { font-size: 16px; }
-body {
-  margin: 0;
-  font-family: var(--fuente);
-  color: var(--tinta);
-  background: var(--fondo);
-  line-height: 1.5;
-}
+body { margin: 0; font-family: var(--fuente); color: var(--tinta); background: var(--fondo); line-height: 1.5; }
 a { color: var(--debito); }
-h1 { font-size: 1.6rem; line-height: 1.25; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
-h2 { font-size: 1.15rem; margin: 0 0 .75rem; font-weight: 650; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
-h3 { font-size: 1rem; margin: 0 0 .5rem; font-weight: 650; }
-.ayuda { color: var(--tinta-suave); margin: .25rem 0; }
+h1, h2, h3 { margin: 0; font-weight: 650; line-height: 1.3; }
+h1 { font-size: 1.6rem; line-height: 1.25; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1rem; }
+p, ul { margin: 0; }
+ul { padding-left: 1.25rem; }
+.ayuda { color: var(--tinta-suave); }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-:focus-visible { outline: 3px solid #f5b94a; outline-offset: 2px; }
+.error { color: var(--operacion); font-weight: 600; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
+:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
 
-/* Estructura */
-.app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+/* ------------------------------------------------------------ estructura */
+.app {
+  display: grid; grid-template-columns: var(--ancho-lateral) minmax(0, 1fr); min-height: 100vh;
+  background: linear-gradient(to right, var(--lateral) var(--ancho-lateral), var(--fondo) var(--ancho-lateral));
+}
 .lateral {
   background: var(--lateral); color: #e6ebf1; padding: 1.5rem 1rem;
   display: flex; flex-direction: column; gap: 2rem; position: sticky; top: 0; height: 100vh;
 }
-.marca { color: #fff; text-decoration: none; display: flex; flex-direction: column; }
+.lateral :focus-visible { outline-color: #f5b94a; }
+.marca { color: #fff; text-decoration: none; display: flex; flex-direction: column; padding: 0 .75rem; }
 .marca-nombre { font-size: 1.25rem; font-weight: 700; }
 .marca-sub { font-size: .85rem; color: #9fb0c3; }
 .lateral nav { display: flex; flex-direction: column; gap: .25rem; }
@@ -67,155 +77,214 @@ h3 { font-size: 1rem; margin: 0 0 .5rem; font-weight: 650; }
 }
 .lateral nav a:hover { background: #222d3a; color: #fff; }
 .lateral nav a.activo { background: #263445; color: #fff; border-left-color: #f5b94a; }
-.usuario { margin-top: auto; font-size: .9rem; color: #9fb0c3; display: flex; flex-direction: column; gap: .25rem; }
+.usuario { margin-top: auto; padding: 0 .75rem; font-size: .9rem; color: #9fb0c3; display: flex; flex-direction: column; gap: .25rem; align-items: flex-start; }
 .enlace { background: none; border: 0; padding: 0; color: #d3dbe5; text-decoration: underline; cursor: pointer; font: inherit; }
 
-.contenido { padding: 2rem 2.5rem 4rem; max-width: 1280px; width: 100%; }
-.cabecera { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.contenido { padding: 2rem 2.5rem 4rem; max-width: 1280px; width: 100%; min-width: 0; }
+
+/* Cabecera de página: título y descripción a la izquierda, acciones a la derecha y centradas con el bloque. */
+.cabecera { display: flex; justify-content: space-between; align-items: center; gap: var(--espacio) 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.cabecera > div:first-child { flex: 1 1 32rem; min-width: 0; }
 .cabecera .ayuda { margin-top: .35rem; }
+
+/* Caja de contenido. Sus hijos directos se separan con un ritmo fijo, sin márgenes sueltos. */
 .bloque { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+.bloque > * + * { margin-top: var(--espacio); }
+.bloque > :is(h2, h3) + * { margin-top: .5rem; }
+.bloque > input[type=hidden] + * { margin-top: 0; }
+.bloque > :is(h2, h3) + :is(.tabla-envoltura, .fila-campos, .filtros) { margin-top: var(--espacio); }
 .vacio { background: var(--papel); border: 1px dashed var(--linea); border-radius: var(--radio); padding: 2rem; text-align: center; }
+.vacio > * + * { margin-top: .5rem; }
 
 /* Mensajes */
-.mensajes { margin-bottom: 1rem; }
-.mensaje { padding: .75rem 1rem; border-radius: var(--radio); margin: 0 0 .5rem; border: 1px solid var(--linea); background: var(--papel); }
-.mensaje-success { border-color: #b7dfc6; background: #edf8f1; }
+.mensajes { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.5rem; }
+.mensaje { padding: .75rem 1rem; border-radius: var(--radio); border: 1px solid var(--linea); background: var(--papel); }
+.mensaje-success { border-color: #b7dfc6; background: var(--ok-fondo); }
 .mensaje-error { border-color: #f3c0bb; background: var(--operacion-fondo); }
 .mensaje-warning { border-color: #f0d9a8; background: #fdf6e7; }
-.error { color: var(--operacion); font-weight: 600; }
 
-/* Botones y formularios */
+/* ------------------------------------------------------------ botones */
 .boton {
   display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
-  min-height: 44px; padding: .55rem 1.1rem; border-radius: var(--radio);
+  min-height: var(--alto-control); padding: .5rem 1.1rem; border-radius: var(--radio);
   border: 1px solid var(--linea); background: var(--papel); color: var(--tinta);
-  font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+  font: inherit; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap;
   transition: background-color .15s ease, border-color .15s ease;
 }
 .boton:hover { border-color: var(--tinta-suave); }
 .boton-principal { background: var(--tinta); border-color: var(--tinta); color: #fff; }
 .boton-principal:hover { background: #2c3a4c; }
-.boton[disabled], .boton[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .boton-peligro { color: var(--operacion); border-color: #f3c0bb; }
+.boton-peligro:hover { border-color: var(--operacion); }
+.boton[disabled], .boton[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
 .acciones { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
 
-.formulario { display: flex; flex-direction: column; gap: .4rem; }
-.formulario label, .campo label { font-weight: 600; font-size: .95rem; }
+/* ------------------------------------------------------------ formularios */
 input[type=text], input[type=password], input[type=number], select, textarea {
-  font: inherit; color: var(--tinta); background: var(--papel);
-  border: 1px solid #b9c2cd; border-radius: var(--radio); padding: .55rem .7rem; min-height: 44px; width: 100%;
+  font: inherit; color: var(--tinta); background: var(--papel); width: 100%;
+  border: 1px solid var(--borde-campo); border-radius: var(--radio); padding: .5rem .7rem; min-height: var(--alto-control);
 }
-textarea { min-height: 70px; }
-.campo { display: flex; flex-direction: column; gap: .3rem; margin-bottom: 1rem; }
-.campo .ayuda { font-size: .88rem; }
-.campo .error { font-size: .9rem; margin: 0; }
-.fila-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+textarea { resize: vertical; line-height: 1.4; }
+input[type=checkbox] { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--tinta); }
+input[type=file] { font: inherit; max-width: 100%; }
+input[type=file]::file-selector-button {
+  font: inherit; font-weight: 600; margin-right: .75rem; padding: .45rem 1rem; min-height: 40px; cursor: pointer;
+  border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); color: var(--tinta);
+}
+input[type=file]::file-selector-button:hover { border-color: var(--tinta-suave); }
+
+/* Un campo: etiqueta, control y pie (ayuda y errores). */
+.campo { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.campo > label { font-weight: 600; font-size: .95rem; line-height: 1.35; }
+.campo-pie { display: flex; flex-direction: column; gap: .25rem; font-size: .88rem; }
+.campo-pie .error { font-size: .9rem; }
+.campo-ancho { max-width: 48rem; }
+
+/* Fila de campos: las etiquetas comparten alto, así todos los controles de la fila quedan a la misma altura
+   aunque una etiqueta ocupe dos líneas (subgrid: etiqueta / control / pie). */
+.fila-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .35rem 1.25rem; }
+.fila-campos > .campo { display: grid; grid-row: span 3; grid-template-rows: subgrid; gap: .35rem; margin-bottom: .75rem; }
+.fila-campos > .campo > label { align-self: end; }
+
+/* Casilla con su texto al lado. */
+.check { display: inline-flex; align-items: center; gap: .5rem; font-size: .9rem; cursor: pointer; }
+.campo-check > .check { font-size: .95rem; font-weight: 600; }
+
+/* Filtros en línea: campos y botón alineados por la base. */
+.filtros { display: flex; gap: .75rem 1rem; flex-wrap: wrap; align-items: flex-end; }
+.filtros .campo { flex: 0 1 16rem; }
+.filtros + .tabla-envoltura { margin-top: var(--espacio); }
 
 /* Acceso */
 .acceso { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
 .acceso-caja { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 2rem; width: min(420px, 100%); }
 .acceso-caja .marca-sub { color: var(--tinta-suave); }
 .acceso-caja h1 { margin: .25rem 0 .5rem; }
-.acceso-caja .boton { margin-top: 1rem; }
+.formulario { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.5rem; }
+.formulario label { font-weight: 600; font-size: .95rem; }
+.formulario input + label { margin-top: .75rem; }
+.formulario .boton { margin-top: 1.25rem; }
 
-/* Asistente */
-.pasos { display: flex; gap: 0; margin: 0 0 1.5rem; padding: 0; list-style: none; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); overflow: hidden; }
+/* ------------------------------------------------------------ asistente */
+.pasos { display: flex; margin: 0 0 1.5rem; padding: 0; list-style: none; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); overflow: hidden; }
 .pasos li { flex: 1; padding: .7rem 1rem; color: var(--tinta-suave); border-right: 1px solid var(--linea); font-size: .95rem; }
 .pasos li:last-child { border-right: 0; }
 .pasos li.actual { color: var(--tinta); font-weight: 650; box-shadow: inset 0 -3px 0 var(--tinta); }
 .pasos li.hecho { color: var(--tinta); }
-.zona-carga { border: 2px dashed #b9c2cd; border-radius: var(--radio); padding: 1.5rem; background: #fafbfc; }
-.zona-carga input[type=file] { font: inherit; }
+.zona-carga { display: flex; flex-direction: column; gap: .5rem; border: 2px dashed var(--borde-campo); border-radius: var(--radio); padding: 1.25rem 1.5rem; background: #fafbfc; }
+details > summary { cursor: pointer; color: var(--tinta-suave); }
+details[open] > summary { margin-bottom: .75rem; }
+details > * + * { margin-top: .75rem; }
 
-/* Tablas */
-.tabla-envoltura { overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); }
+/* ------------------------------------------------------------ tablas */
+.tabla-envoltura { position: relative; overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); }
 table { border-collapse: collapse; width: 100%; font-size: .93rem; }
-th, td { padding: .55rem .75rem; border-bottom: 1px solid var(--linea-suave); text-align: left; vertical-align: top; }
-th { background: #f7f9fb; font-weight: 650; color: var(--tinta-suave); font-size: .85rem; position: sticky; top: 0; }
+th, td { padding: .55rem .6rem; border-bottom: 1px solid var(--linea-suave); text-align: left; vertical-align: middle; }
+th:first-child, td:first-child { padding-left: .85rem; }
+th:last-child, td:last-child { padding-right: .85rem; }
+/* Encabezados abajo: si uno ocupa dos líneas, todos quedan apoyados sobre la misma base. */
+th { background: #f7f9fb; font-weight: 650; color: var(--tinta-suave); font-size: .85rem; line-height: 1.3; vertical-align: bottom; position: sticky; top: 0; }
+th.num { white-space: normal; }
+tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fafbfc; }
 tfoot td { font-weight: 700; border-top: 2px solid var(--linea); border-bottom: 0; }
-td.mensaje-celda { max-width: 420px; color: var(--tinta-suave); }
+tr[id] { scroll-margin-top: 1rem; }
+/* Filas con texto largo o formulario: todo arriba, para leer de izquierda a derecha en la misma línea. */
+tr:has(.mensaje-celda, .revisar) > td { vertical-align: top; }
+td.mensaje-celda { min-width: 210px; max-width: 420px; color: var(--tinta-suave); }
+td:has(> .etiqueta) { min-width: 9rem; }
+td > .boton, td > form > .boton { min-height: var(--alto-control-tabla); padding: .3rem .85rem; }
+td .ayuda { font-size: .88rem; }
 
-/* Medios de pago: color + nombre siempre juntos */
-.medio { display: inline-flex; align-items: center; gap: .45rem; font-weight: 650; white-space: nowrap; }
-.medio::before { content: ""; width: 4px; height: 1.1em; border-radius: 2px; background: currentColor; }
+/* Formulario de revisión dentro de una tabla */
+.revisar { display: flex; flex-direction: column; gap: .4rem; min-width: 160px; }
+.revisar textarea, .revisar input[type=text] { min-height: var(--alto-control-tabla); padding: .35rem .6rem; font-size: .9rem; }
+.revisar .boton { min-height: var(--alto-control-tabla); padding: .3rem .85rem; align-self: flex-start; }
+
+/* ------------------------------------------------------------ medios de pago: color + nombre siempre juntos */
+.medio { display: inline; font-weight: 650; white-space: nowrap; }
+.medio::before {
+  content: ""; display: inline-block; width: 4px; height: 1em; margin-right: .45rem;
+  border-radius: 2px; background: currentColor; vertical-align: -.15em;
+}
 .medio-DEBITO { color: var(--debito); }
 .medio-CREDITO { color: var(--credito-texto); }
 .medio-PREPAGO { color: var(--prepago); }
-.fila-medio-DEBITO td:first-child { box-shadow: inset 4px 0 0 var(--debito); }
-.fila-medio-CREDITO td:first-child { box-shadow: inset 4px 0 0 var(--credito); }
-.fila-medio-PREPAGO td:first-child { box-shadow: inset 4px 0 0 var(--prepago); }
+.fila-medio-DEBITO > td:first-child { box-shadow: inset 4px 0 0 var(--debito); }
+.fila-medio-CREDITO > td:first-child { box-shadow: inset 4px 0 0 var(--credito); }
+.fila-medio-PREPAGO > td:first-child { box-shadow: inset 4px 0 0 var(--prepago); }
 
-/* Indicadores */
-.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+/* ------------------------------------------------------------ resultado */
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--espacio); margin: 0 0 1.5rem; }
 .indicador { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1rem 1.25rem; }
 .indicador dt { font-size: .88rem; color: var(--tinta-suave); }
 .indicador dd { margin: .2rem 0 0; font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.indicador dd small { font-size: .95rem; font-weight: 600; }
 .indicador.alerta dd { color: var(--operacion); }
 .indicador.bien dd { color: var(--ok); }
 
-/* Pestañas */
-.pestanas { display: flex; gap: .25rem; border-bottom: 1px solid var(--linea); margin-bottom: 1.25rem; flex-wrap: wrap; }
-.pestanas a { padding: .7rem 1rem; text-decoration: none; color: var(--tinta-suave); border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 600; }
+.pestanas { display: flex; gap: .25rem; border-bottom: 1px solid var(--linea); margin-bottom: 1.5rem; flex-wrap: wrap; }
+.pestanas a { display: inline-flex; align-items: center; padding: .7rem 1rem; text-decoration: none; color: var(--tinta-suave); border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 600; }
 .pestanas a:hover { color: var(--tinta); }
 .pestanas a.activa { color: var(--tinta); border-bottom-color: var(--tinta); }
 .pestanas a.pestana-DEBITO.activa { border-bottom-color: var(--debito); color: var(--debito); }
 .pestanas a.pestana-CREDITO.activa { border-bottom-color: var(--credito); color: var(--credito-texto); }
 .pestanas a.pestana-PREPAGO.activa { border-bottom-color: var(--prepago); color: var(--prepago); }
-.contador { display: inline-block; min-width: 1.6em; padding: 0 .4em; margin-left: .3rem; border-radius: 999px; background: var(--linea-suave); color: var(--tinta); font-size: .8rem; text-align: center; }
+.contador { display: inline-block; min-width: 1.6em; padding: 0 .4em; margin-left: .4rem; border-radius: 999px; background: var(--linea-suave); color: var(--tinta); font-size: .8rem; line-height: 1.5; text-align: center; }
 
-/* Etiquetas de categoría / tipo */
-.etiqueta { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 650; white-space: nowrap; border: 1px solid transparent; }
+/* Etiquetas de categoría / tipo. En tablas pueden ocupar dos líneas y siguen viéndose como etiqueta. */
+.etiqueta { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 650; line-height: 1.45; white-space: nowrap; border: 1px solid transparent; }
+td .etiqueta { white-space: normal; border-radius: var(--radio); max-width: 13rem; }
 .tipo-Operación { color: var(--operacion); background: var(--operacion-fondo); }
 .tipo-Dato { color: var(--dato); background: var(--dato-fondo); }
 .tipo-Pendiente { color: var(--pendiente); background: var(--pendiente-fondo); }
 .tipo-Aviso { color: var(--aviso); background: var(--aviso-fondo); border-color: var(--linea); }
-.tipo-OK { color: var(--ok); background: #edf8f1; }
-
-/* Filtros */
-.filtros { display: flex; gap: .75rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; }
-.filtros .campo { margin: 0; min-width: 200px; }
-
-/* Matriz */
+.tipo-OK { color: var(--ok); background: var(--ok-fondo); }
 .matriz td.cero { color: #a3adb9; }
 
-/* Revisión de archivos */
+/* Estados */
 .estado-ok { color: var(--ok); font-weight: 650; }
 .estado-error { color: var(--operacion); font-weight: 650; }
 .estado-aviso { color: var(--credito-texto); font-weight: 650; }
 
-details summary { cursor: pointer; color: var(--tinta-suave); }
+/* ------------------------------------------------------------ conciliación en dólares (app "web" de main) */
+.sobretitulo { font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave); margin-bottom: .25rem; }
+.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 0 1.5rem; align-items: start; }
+.pares-campos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .75rem 1rem; align-items: center; }
+.pares-campos > label { font-weight: 600; font-size: .95rem; }
+.carga-archivos { display: flex; flex-direction: column; gap: 1.25rem; }
+.grupo-archivos { display: grid; grid-template-columns: minmax(0, 1fr) 9.5rem; gap: .5rem .75rem; align-items: center; }
+.grupo-archivos input[type=file] {
+  width: 100%; min-height: 40px; padding: .25rem; font-size: .9rem; color: var(--tinta-suave);
+  border: 1px solid var(--borde-campo); border-radius: var(--radio); background: var(--papel);
+}
+.grupo-archivos input[type=file]::file-selector-button { min-height: 30px; padding: .2rem .75rem; margin-right: .6rem; font-size: .88rem; }
+.boton-etiqueta { min-height: 40px; padding: .4rem .75rem; background: var(--pendiente-fondo); color: var(--tinta); font-size: .9rem; cursor: default; }
+.boton-etiqueta:hover { border-color: var(--linea); }
+.boton-etiqueta[disabled] { opacity: 1; cursor: default; }
+.boton-ancho { width: 100%; }
+.acciones-columna { flex-direction: column; align-items: stretch; gap: .5rem; }
+td.celda-total { background: var(--credito-fondo); font-weight: 650; }
 
+/* ------------------------------------------------------------ notebooks (1366 px): menos aire para que las tablas
+   del resultado entren completas sin barra horizontal */
+@media (max-width: 1500px) {
+  :root { --ancho-lateral: 216px; }
+  .contenido { padding: 1.75rem 1.5rem 3rem; }
+  .bloque { padding: 1.25rem; }
+  .revisar { min-width: 150px; }
+}
+
+/* ------------------------------------------------------------ pantallas angostas */
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: 1fr; background: var(--fondo); }
   .lateral { position: static; height: auto; gap: 1rem; }
   .lateral nav { flex-direction: row; flex-wrap: wrap; }
   .contenido { padding: 1.25rem; }
   .pasos { flex-direction: column; }
   .pasos li { border-right: 0; border-bottom: 1px solid var(--linea); }
+  .pasos li:last-child { border-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
-
-/* Formularios de revisión dentro de tablas */
-.revisar { display: flex; flex-direction: column; gap: .35rem; min-width: 200px; }
-.revisar textarea, .revisar input[type=text] { min-height: 38px; font-size: .9rem; }
-.revisar .boton { min-height: 36px; padding: .3rem .8rem; align-self: flex-start; }
-.check { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; }
-.check input { width: 18px; height: 18px; }
-
-/* Ajustes tras la prueba en navegador */
-.app { background: linear-gradient(to right, var(--lateral) 240px, var(--fondo) 240px); }
-.contenido { min-width: 0; }
-td.mensaje-celda { min-width: 320px; }
-@media (max-width: 900px) { .app { background: var(--fondo); } }
-
-/* Correcciones de la revisión de interfaz */
-:focus-visible { outline-color: var(--tinta); }
-.lateral :focus-visible { outline-color: #f5b94a; }
-.tabla-envoltura { position: relative; }
-td .etiqueta { white-space: normal; }
-td.mensaje-celda { min-width: 240px; }
-tr[id] { scroll-margin-top: 1rem; }
-.zona-carga input[type=file] { max-width: 100%; }

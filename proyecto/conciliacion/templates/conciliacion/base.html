@@ -19,6 +19,7 @@
       <a href="{% url 'conciliacion:nueva' %}" class="{% if ruta == 'nueva' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}">Nueva conciliación</a>
       <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}">Conciliaciones</a>
       <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}">Pendientes abiertos</a>
+      <a href="{% url 'PR' %}" class="{% if ruta == 'PR' %}activo{% endif %}">Conciliación en US$</a>
       <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}">Parámetros</a>
       {% endwith %}
     </nav>

@@ -12,14 +12,21 @@
   {% csrf_token %}
   <h2>Reglas de comparación</h2>
   <div class="fila-campos">
-    {% for campo in form %}
-      <div class="campo">
-        <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
-        {{ campo }}
-        {% if campo.help_text %}<p class="ayuda">{{ campo.help_text }}</p>{% endif %}
-        {% for e in campo.errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
-      </div>
-    {% endfor %}
+    {% include "conciliacion/_campo.html" with campo=form.tolerancia_clp %}
+    {% include "conciliacion/_campo.html" with campo=form.umbral_similitud %}
+    {% include "conciliacion/_campo.html" with campo=form.dias_holgura %}
+    {% include "conciliacion/_campo.html" with campo=form.ventana_dias %}
+  </div>
+  <h3>Cartola</h3>
+  {% include "conciliacion/_campo.html" with campo=form.patrones_cartola ancho=True %}
+  {% include "conciliacion/_campo.html" with campo=form.reglas_medio_cartola ancho=True %}
+  <h3>Moneda</h3>
+  <div class="campo campo-ancho campo-check">
+    <label class="check" for="{{ form.omitir_moneda_extranjera.id_for_label }}">{{ form.omitir_moneda_extranjera }} {{ form.omitir_moneda_extranjera.label }}</label>
+    <div class="campo-pie">
+      <p class="ayuda">{{ form.omitir_moneda_extranjera.help_text }}</p>
+      {% for e in form.omitir_moneda_extranjera.errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
+    </div>
   </div>
   <div class="acciones"><button type="submit" class="boton boton-principal">Guardar parámetros</button></div>
 </form>
@@ -27,7 +34,7 @@
 <section class="bloque">
   <h2>Equivalencias del bordero</h2>
   <p class="ayuda">Qué medio de pago puede representar cada código de débito (Cod. Deb.) del bordero. Si una venta cruza con un código que no corresponde a su medio, se informa como "Medio de pago distinto" (aviso). Pendiente de confirmar con el hotel.</p>
-  <div class="tabla-envoltura" style="margin-bottom:1rem">
+  <div class="tabla-envoltura">
     <table>
       <thead><tr><th>Cod. Deb.</th><th>Medio de pago</th><th><span class="sr-only">Quitar</span></th></tr></thead>
       <tbody>

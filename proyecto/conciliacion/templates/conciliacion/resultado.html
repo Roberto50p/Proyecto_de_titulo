@@ -10,7 +10,7 @@
   <div class="acciones">
     <a class="boton boton-principal" href="{% url 'conciliacion:pdf' conc.pk %}">Descargar PDF</a>
     <a class="boton" href="{% url 'conciliacion:excel' conc.pk %}">Descargar Excel</a>
-    <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Cambiar archivos</a>
+    <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Modificar archivos o conciliar de nuevo</a>
   </div>
 </header>
 
@@ -50,11 +50,10 @@
         <tfoot><tr><td>Total</td><td class="num">{{ d.total.ventas|pesos }}</td><td class="num">{{ d.total.comision_iva|pesos }}</td><td class="num">{{ d.total.abono_tbk|pesos }}</td><td class="num">{{ d.total.abono_cartola|pesos }}</td><td class="num">{{ d.total.diferencial|pesos }}</td><td class="num">{{ d.total.n_ventas|miles }}</td><td class="num">{{ d.total.n_falla|miles }}</td></tr></tfoot>
       </table>
     </div>
+    <p class="{% if d.cuadra %}estado-ok{% else %}error{% endif %}">
+      {% if d.cuadra %}Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "Ventas Transbank".{% else %}La suma de las categorías no coincide con "Ventas Transbank" en algún medio de pago; revisa los archivos Transbank.{% endif %}
+    </p>
   </section>
-
-  <p class="{% if d.cuadra %}estado-ok{% else %}error{% endif %}" style="margin-top:-.75rem">
-    {% if d.cuadra %}Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "Ventas Transbank".{% else %}La suma de las categorías no coincide con "Ventas Transbank" en algún medio de pago; revisa los archivos Transbank.{% endif %}
-  </p>
 
   {% if d.cartola_sin_archivo %}
   <section class="bloque" role="alert">
@@ -151,6 +150,8 @@
     {% endfor %}
   </section>
 
+  <section class="bloque">
+  <h2>Ventas</h2>
   <form method="get" class="filtros">
     <input type="hidden" name="vista" value="{{ vista }}">
     <div class="campo">
@@ -192,8 +193,9 @@
       </tbody>
     </table>
   </div>
+  </section>
   {% if capitulo.otros %}
-    <section class="bloque" style="margin-top:1.5rem">
+    <section class="bloque">
       <h3>Otros movimientos (no son ventas)</h3>
       <ul>{% for v in capitulo.otros %}<li>{{ v.fecha_venta|date:"d/m/Y" }} · {{ v.tipo_movimiento }} · {{ v.codigo_autorizacion }} · {{ v.monto_original|pesos }}</li>{% endfor %}</ul>
     </section>

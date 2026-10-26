@@ -1,0 +1,8 @@
+<div class="campo{% if ancho %} campo-ancho{% endif %}">
+  <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+  {{ campo }}
+  <div class="campo-pie">
+    {% if campo.help_text %}<p class="ayuda">{{ campo.help_text }}</p>{% endif %}
+    {% for e in campo.errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
+  </div>
+</div>

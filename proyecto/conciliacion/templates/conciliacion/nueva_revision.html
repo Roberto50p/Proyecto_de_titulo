@@ -23,7 +23,9 @@
 </section>
 {% endif %}
 
-<div class="tabla-envoltura" style="margin-bottom:1.5rem">
+<section class="bloque">
+<h2>Cómo se leyó cada archivo</h2>
+<div class="tabla-envoltura">
   <table>
     <thead><tr><th>Archivo</th><th>Tipo</th><th>Medio de pago</th><th>Cuenta / moneda</th><th>Período o abono</th><th class="num">Filas</th><th class="num">Total abono</th><th>Estado</th></tr></thead>
     <tbody>
@@ -31,12 +33,12 @@
       <tr{% if a.medio %} class="fila-medio-{{ a.medio }}"{% endif %}>
         <td>{{ a.nombre }}</td>
         <td>{{ a.get_tipo_display }}</td>
-        <td>{% if a.medio %}<span class="medio medio-{{ a.medio }}">{{ a.get_medio_display }}</span>{% else %}-{% endif %}</td>
-        <td>{{ a.cuenta|default:"-" }}{% if a.moneda %} · {{ a.moneda }}{% endif %}</td>
+        <td>{% if a.medio %}<span class="medio medio-{{ a.medio }}">{{ a.get_medio_display }}</span>{% elif a.por_medio %}{{ a.etiqueta_medio }}{% else %}-{% endif %}</td>
+        <td>{% if a.banco %}{{ a.banco }} {% endif %}{{ a.cuenta|default:"-" }}{% if a.moneda %} · {{ a.moneda }}{% endif %}</td>
         <td>{% if a.fecha_abono %}Abono {{ a.fecha_abono|date:"d/m/Y" }} · ventas {{ a.desde|date:"d/m" }} a {{ a.hasta|date:"d/m" }}{% elif a.desde %}{{ a.desde|date:"d/m/Y" }} al {{ a.hasta|date:"d/m/Y" }}{% else %}-{% endif %}</td>
         <td class="num">{{ a.filas|miles }}</td>
         <td class="num">{{ a.total_abono|pesos }}</td>
-        <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
+        <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% elif a.moneda_extranjera %}<span class="estado-error">En {{ a.moneda|default:"moneda no informada" }}: no se concilia</span>{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
       </tr>
     {% empty %}
       <tr><td colspan="8">No hay archivos cargados.</td></tr>
@@ -44,6 +46,7 @@
     </tbody>
   </table>
 </div>
+</section>
 
 <form method="post" action="{% url 'conciliacion:procesar' conc.pk %}" class="acciones">
   {% csrf_token %}
