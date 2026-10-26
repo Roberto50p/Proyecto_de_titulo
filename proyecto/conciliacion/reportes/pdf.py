@@ -260,7 +260,10 @@ def _seccion_parametros(d, h):
              ["Similitud mínima de códigos", str(p.get("umbral_similitud"))],
              ["Días hábiles de holgura en cartola", str(p.get("dias_holgura"))],
              ["Días máximos entre venta y bordero", str(p.get("ventana_dias"))],
-             ["Textos de abonos en cartola", ", ".join(p.get("patrones_cartola", []))]]
+             ["Textos de abonos en cartola", ", ".join(p.get("patrones_cartola", []))],
+             ["Medio probable según cartola",
+              Paragraph(escape("; ".join(f"{t} = {m}" for t, m in p.get("reglas_medio_cartola", []))), E["chico"])],
+             ["Omitir archivos en moneda extranjera", "Sí" if p.get("omitir_moneda_extranjera") else "No"]]
     filas += [[f"Equivalencia {k}", ", ".join(cat.ETIQUETA_MEDIO.get(m, m) for m in v)]
               for k, v in p.get("equivalencias", {}).items()]
     h.append(KeepTogether(_tabla(filas, [80 * mm, 80 * mm])))
@@ -269,7 +272,9 @@ def _seccion_parametros(d, h):
     for a in d["archivos"]:
         periodo = (f"abono {a.fecha_abono:%d/%m/%Y}" if a.fecha_abono else
                    f"{a.desde:%d/%m/%Y} a {a.hasta:%d/%m/%Y}" if a.desde else "-")
-        filas.append([Paragraph(escape(a.nombre), E["chico"]), a.get_tipo_display(), a.get_medio_display(), periodo,
+        tipo = a.get_tipo_display() + (f" (omitido, {a.moneda})" if a.moneda_extranjera else "")
+        filas.append([Paragraph(escape(a.nombre), E["chico"]), Paragraph(escape(tipo), E["chico"]),
+                      Paragraph(escape(a.etiqueta_medio or "-"), E["chico"]), periodo,
                       entero(a.filas), pesos(a.total_abono) if a.total_abono is not None else "-"])
     h.append(_tabla(filas, [80 * mm, 26 * mm, 24 * mm, 50 * mm, 20 * mm, 32 * mm], numericas=(4, 5)))
 

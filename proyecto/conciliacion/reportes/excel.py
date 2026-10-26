@@ -198,13 +198,16 @@ def _parametros(libro, d):
         ["Días hábiles de holgura en cartola", p.get("dias_holgura")],
         ["Días máximos entre venta y bordero", p.get("ventana_dias")],
         ["Textos de abonos en cartola", ", ".join(p.get("patrones_cartola", []))],
+        ["Medio probable según cartola", "; ".join(f"{t} = {m}" for t, m in p.get("reglas_medio_cartola", []))],
+        ["Omitir archivos en moneda extranjera", "Sí" if p.get("omitir_moneda_extranjera") else "No"],
     ] + [[f"Equivalencia {k}", ", ".join(cat.ETIQUETA_MEDIO.get(m, m) for m in v)]
          for k, v in p.get("equivalencias", {}).items()]
     h.tabla(["Parámetro", "Valor"], filas, anchos=[36, 40])
     h.texto("Archivos", negrita=True)
     h.tabla(["Archivo", "Tipo", "Medio", "Desde", "Hasta", "Fecha abono", "Filas", "Total abono", "SHA-256"],
-            [[a.nombre, a.get_tipo_display(), a.get_medio_display(), a.desde, a.hasta, a.fecha_abono, a.filas,
-              a.total_abono, a.sha256[:16]] for a in d["archivos"]],
+            [[a.nombre, a.get_tipo_display() + (f" (omitido, {a.moneda})" if a.moneda_extranjera else ""),
+              a.etiqueta_medio, a.desde, a.hasta, a.fecha_abono, a.filas, a.total_abono, a.sha256[:16]]
+             for a in d["archivos"]],
             montos=["Total abono"], fechas=["Desde", "Hasta", "Fecha abono"])
 
 

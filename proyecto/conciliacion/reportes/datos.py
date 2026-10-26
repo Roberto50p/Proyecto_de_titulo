@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from ..models import ArchivoCargado, Conciliacion, PagoBordero, Pendiente
 from ..motor import categorias as cat
-from ..servicio import cartola_sin_archivo
+from ..servicio import cartola_sin_archivo, utilizables
 
 EMPRESA = "HOTELERA SAN FRANCISCO S.A."
 DEPARTAMENTO = "Depto. Adm. y Finanzas"
@@ -30,7 +30,7 @@ def pendientes_abiertos_al_cierre(conc: Conciliacion):
 def armar(conc: Conciliacion) -> dict:
     resumen = conc.resumen or {}
     medios = resumen.get("medios", {})
-    cartola = conc.archivos.filter(tipo=ArchivoCargado.CARTOLA, error="").first()
+    cartola = next((a for a in utilizables(conc) if a.tipo == ArchivoCargado.CARTOLA), None)
 
     resumen_medios = []
     for m in cat.MEDIOS:
@@ -66,7 +66,7 @@ def armar(conc: Conciliacion) -> dict:
             "empresa": EMPRESA, "departamento": DEPARTAMENTO, "rut": RUT,
             "titulo": f"Conciliación Transbank — {conc.etiqueta}",
             "subtitulo": "Cierre por fecha de abono",
-            "cuenta": f"Banco de Chile {cartola.cuenta}" if cartola else "Sin cartola",
+            "cuenta": f"{cartola.banco} {cartola.cuenta}".strip() if cartola else "Sin cartola",
             "generado": timezone.localtime(),
             "procesada_en": conc.procesada_en,
         },
@@ -79,7 +79,7 @@ def armar(conc: Conciliacion) -> dict:
         "n_pendientes_cerrados": resumen.get("n_pendientes_cerrados", 0),
         "parametros": conc.parametros,
         "archivos": list(conc.archivos.all()),
-        "invalidos_bordero": list(PagoBordero.objects.filter(archivo__conciliacion=conc, invalido=True)),
+        "invalidos_bordero": list(PagoBordero.objects.filter(archivos__conciliacion=conc, invalido=True).distinct()),
         "cartola_sin_archivo": cartola_sin_archivo(conc),
         "cuadra": all(r.get("cuadratura", 0) == 0 for r in resumen_medios),
     }
