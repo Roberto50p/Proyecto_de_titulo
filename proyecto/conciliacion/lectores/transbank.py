@@ -1,4 +1,4 @@
-"""Lector del reporte Transbank "Abonos por día" (débito, crédito o prepago)."""
+"""Lector del reporte Transbank "Abonos por día" (débito, crédito, prepago o todos los medios de pago)."""
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -20,6 +20,7 @@ from .comunes import (
 )
 
 MEDIOS_TEXTO = {"debito": "DEBITO", "credito": "CREDITO", "prepago": "PREPAGO"}
+TODOS_LOS_MEDIOS = "todos los medios de pago"
 
 # Etiqueta del resumen (sin acentos, minúsculas) -> clave interna. Las devoluciones se suman.
 ETIQUETAS_RESUMEN = {
@@ -41,6 +42,7 @@ COLUMNAS = {
     "tipo de movimiento": "tipo_movimiento",
     "codigo de comercio": "codigo_comercio",
     "nombre local": "nombre_local",
+    "medio de pago": "medio_pago",
     "monto original de venta (+)": "monto_original",
     "monto vuelto": "monto_vuelto",
     "tipo de venta/cuota": "tipo_venta",
@@ -61,12 +63,14 @@ MONTOS = ["monto_original", "monto_vuelto", "monto_abono_valido", "comision", "i
 
 @dataclass
 class ArchivoTransbank:
-    medio: str
+    medio: str | None  # None: el archivo trae todos los medios de pago (el medio va en cada fila)
     moneda: str
     cuenta: str
     fecha_abono: date
     fecha_abono_hasta: date
     resumen: dict[str, int]
+    # Medio -> total_ventas, comision, iva_comision y total_abono de ese medio.
+    resumen_por_medio: dict[str, dict[str, int]]
     ventas: pd.DataFrame = field(repr=False)
 
 
@@ -95,8 +99,9 @@ def leer_transbank(archivo) -> ArchivoTransbank:
     if buscar_celda(hoja, "Medio de pago:") is None or buscar_celda(hoja, "Monto original de venta") is None:
         raise ArchivoNoReconocido("No es un reporte Transbank 'Abonos por día'.")
 
-    medio = MEDIOS_TEXTO.get(clave(_valor_bajo(hoja, "Medio de pago:")))
-    if medio is None:
+    texto_medio = clave(_valor_bajo(hoja, "Medio de pago:"))
+    medio = MEDIOS_TEXTO.get(texto_medio)
+    if medio is None and texto_medio != TODOS_LOS_MEDIOS:
         raise ArchivoNoReconocido("No se reconoce el medio de pago del archivo Transbank.")
     moneda = texto(_valor_bajo(hoja, "Moneda:"))
     cuenta = texto(_valor_bajo(hoja, "Cuenta corriente:"))
@@ -130,6 +135,10 @@ def leer_transbank(archivo) -> ArchivoTransbank:
             fecha_venta = parse_fecha_es(registro.get("fecha_venta"))
         except ValueError:
             continue
+        medio_fila = medio or MEDIOS_TEXTO.get(clave(registro.get("medio_pago")))
+        if medio_fila is None:
+            raise ArchivoNoReconocido(f"Fila {fila + 1}: medio de pago no reconocido "
+                                      f"({texto(registro.get('medio_pago')) or 'vacío'}).")
         cuota_num, cuota_total = _cuota(registro.get("cuota"))
         codigo = texto(registro.get("codigo_autorizacion"))
         filas.append({
@@ -146,11 +155,20 @@ def leer_transbank(archivo) -> ArchivoTransbank:
             "codigo_autorizacion": codigo,
             "codigo_norm": normalizar_codigo(codigo),
             "boleta": texto(registro.get("boleta")),
-            "medio": medio,
+            "medio": medio_fila,
         })
 
     ventas = pd.DataFrame(filas)
     if not ventas.empty:
         ventas["cuota_num"] = ventas["cuota_num"].astype("Int64")
         ventas["cuota_total"] = ventas["cuota_total"].astype("Int64")
-    return ArchivoTransbank(medio, moneda, cuenta, fecha_abono, fecha_hasta, resumen, ventas)
+    if medio:
+        por_medio = {medio: {k: resumen[k] for k in ("total_ventas", "comision", "iva_comision", "total_abono")}}
+    else:
+        # El resumen es del archivo completo; cada medio se arma sumando sus filas del detalle.
+        por_medio = {
+            m: {"total_ventas": int(g.monto_abono_valido.sum()), "comision": int(g.comision.sum()),
+                "iva_comision": int(g.iva_comision.sum()), "total_abono": int(g.total_abono.sum())}
+            for m, g in ventas.groupby("medio")
+        } if not ventas.empty else {}
+    return ArchivoTransbank(medio, moneda, cuenta, fecha_abono, fecha_hasta, resumen, por_medio, ventas)

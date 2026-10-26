@@ -1,5 +1,6 @@
 """Detecta qué tipo de archivo subió el usuario mirando su contenido (no su nombre)."""
 
+from .cartola import es_bancoestado
 from .comunes import ArchivoNoReconocido, buscar_celda, leer_hoja
 
 TRANSBANK = "transbank"
@@ -13,9 +14,10 @@ def detectar(archivo) -> str:
         return TRANSBANK
     if buscar_celda(hoja, "Cargos de Débitos y Créditos") is not None:
         return BORDERO
-    if buscar_celda(hoja, "Movimientos") is not None and buscar_celda(hoja, "Cuenta N") is not None:
+    if (buscar_celda(hoja, "Movimientos") is not None and buscar_celda(hoja, "Cuenta N") is not None) \
+            or es_bancoestado(hoja):
         return CARTOLA
     raise ArchivoNoReconocido(
-        "No se reconoce el archivo. Se esperan: bordero de FrontOffice, cartola del banco o "
-        "reporte Transbank 'Abonos por día'."
+        "No se reconoce el archivo. Se esperan: bordero de FrontOffice, cartola del banco (Banco de Chile o "
+        "BancoEstado) o reporte Transbank 'Abonos por día'."
     )

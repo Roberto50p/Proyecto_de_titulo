@@ -1,10 +1,13 @@
 """Funciones compartidas por los lectores de archivos."""
 
+import io
 import re
 import unicodedata
 from datetime import date, datetime
+from pathlib import Path
 
 import pandas as pd
+import xlrd
 
 MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
@@ -100,15 +103,55 @@ def a_entero(valor) -> int:
         return 0
 
 
-def leer_hoja(archivo, max_filas: int | None = None) -> pd.DataFrame:
-    """Lee la primera hoja sin encabezados y conservando textos. Lanza ArchivoNoReconocido si no es Excel."""
+# Registro BOF de Excel 2.x, 3.0 y 4.0 sin contenedor OLE (así exporta FrontOffice el bordero ".XLS").
+_BOF_BIFF_ANTIGUO = (b"\x09\x00", b"\x09\x02", b"\x09\x04")
+
+
+def _celda_xlrd(celda, datemode):
+    if celda.ctype in (xlrd.XL_CELL_EMPTY, xlrd.XL_CELL_BLANK, xlrd.XL_CELL_ERROR):
+        return None
+    if celda.ctype == xlrd.XL_CELL_DATE:
+        return xlrd.xldate.xldate_as_datetime(celda.value, datemode)
+    return celda.value
+
+
+def _leer_biff_antiguo(contenido: bytes, max_filas: int | None) -> dict[str, pd.DataFrame]:
+    """pandas (calamine) no lee Excel 2.x–4.0; xlrd sí. Sin página de códigos se asume Windows-1252."""
+    libro = xlrd.open_workbook(file_contents=contenido, logfile=io.StringIO(), encoding_override="cp1252")
+    hojas = {}
+    for hoja in libro.sheets():
+        filas = range(hoja.nrows if max_filas is None else min(hoja.nrows, max_filas))
+        hojas[hoja.name] = pd.DataFrame([[_celda_xlrd(c, libro.datemode) for c in hoja.row(i)] for i in filas],
+                                        dtype=object)
+    return hojas
+
+
+def leer_libro(archivo, max_filas: int | None = None) -> dict[str, pd.DataFrame]:
+    """Todas las hojas sin encabezados y conservando textos. Lanza ArchivoNoReconocido si no es Excel.
+
+    Acepta .xlsx, .xls (Excel 97-2003) y los .XLS de Excel 2.x–4.0 que exporta FrontOffice.
+    """
     try:
-        return pd.read_excel(archivo, header=None, dtype=object, nrows=max_filas)
-    except Exception as exc:  # pandas lanza distintos errores según el formato
+        if hasattr(archivo, "read"):
+            inicio = archivo.read(2)
+            archivo.seek(0)
+        else:
+            with open(archivo, "rb") as f:
+                inicio = f.read(2)
+        if inicio in _BOF_BIFF_ANTIGUO:
+            contenido = archivo.read() if hasattr(archivo, "read") else Path(archivo).read_bytes()
+            return _leer_biff_antiguo(contenido, max_filas)
+        return pd.read_excel(archivo, header=None, dtype=object, nrows=max_filas, sheet_name=None)
+    except Exception as exc:  # pandas y xlrd lanzan distintos errores según el formato
         raise ArchivoNoReconocido("El archivo no es un Excel legible.") from exc
     finally:
         if hasattr(archivo, "seek"):
             archivo.seek(0)
+
+
+def leer_hoja(archivo, max_filas: int | None = None) -> pd.DataFrame:
+    """Primera hoja del libro (ver leer_libro)."""
+    return next(iter(leer_libro(archivo, max_filas).values()))
 
 
 def buscar_celda(hoja: pd.DataFrame, etiqueta: str) -> tuple[int, int] | None:
