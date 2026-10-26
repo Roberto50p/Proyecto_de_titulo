@@ -2,9 +2,9 @@
 
 Plataforma web (Django + SQLite) que concilia cada mes las ventas con tarjeta del hotel:
 
-- **Bordero** de FrontOffice ("Cargos de Débitos y Créditos"): lo que registró el hotel.
-- **Transbank** "Abonos por día" de **débito, crédito y prepago**: lo que liquidó Transbank.
-- **Cartola** del Banco de Chile en pesos: lo que llegó al banco.
+- **Bordero** de FrontOffice ("Cargos de Débitos y Créditos"): lo que registró el hotel. Se lee en `.xlsx` y en el `.XLS` antiguo (Excel 4.0) que exporta FrontOffice.
+- **Transbank** "Abonos por día": lo que liquidó Transbank. Sirve un archivo por medio de pago (**débito, crédito, prepago**) o uno con **todos los medios de pago**; en ese caso se separa por medio usando el detalle y se exige que sume el Total abono.
+- **Cartola** en pesos de lo que llegó al banco: **Banco de Chile** (una hoja) o **BancoEstado** "Cartola Histórica" (hojas Resumen y Movimientos; se pueden subir varias, una por día).
 
 El mes se cierra por **fecha de abono**. El resultado muestra las discrepancias separadas por medio de pago y se descarga en **PDF** y **Excel**.
 
@@ -23,22 +23,45 @@ py -3 -m venv .venv
 
 Luego abrir http://127.0.0.1:8000 e ingresar con el usuario creado. También sirve `ejecutar_proyecto.bat` (migra y levanta el servidor).
 
-Variables de entorno opcionales: `DJANGO_SECRET_KEY`, `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS`, `CONCILIACION_DATOS_PRUEBA`.
+Variables de entorno opcionales: `DJANGO_SECRET_KEY`, `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS`, `CONCILIACION_DATOS_PRUEBA`, `CONCILIACION_DATOS_OCTUBRE`.
 
 ## Uso
 
 1. **Nueva conciliación** → elegir el mes de abono.
-2. **Archivos** → subir el bordero (uno o más), la cartola y un archivo Transbank por medio de pago y día de abono. Se reconocen por su contenido, el nombre no importa.
+2. **Archivos** → subir el bordero (uno o más), las cartolas y los archivos Transbank de cada día de abono (uno por medio de pago o uno con todos los medios). Se reconocen por su contenido, el nombre no importa.
 3. **Revisión de lectura** → confirmar qué entendió el sistema de cada archivo. Si falta algo o un archivo no corresponde, no deja conciliar.
 4. **Resultado** → resumen, matriz de fallas por medio de pago, una pestaña por Débito / Crédito / Prepago y pendientes. Cada falla dice qué pasó y qué hacer; se puede anotar una observación y marcarla como revisada.
 
-Las categorías y reglas están en `conciliacion/motor/` (`categorias.py`, `cruce.py`, `abonos.py`). Los parámetros (tolerancia, similitud de códigos, equivalencias Cod. Deb. → medio de pago) se editan en **Parámetros**.
+### Modificar una conciliación ya hecha
+
+Desde **Conciliaciones → Modificar** (o "Modificar archivos o conciliar de nuevo" en el resultado) se vuelve a la pantalla de archivos del mes:
+
+- **Agregar o quitar archivos**: la conciliación vuelve a borrador hasta que se concilie otra vez.
+- **Conciliar de nuevo con otros archivos**: "Quitar todos los archivos" deja el mes vacío para subir otra versión del bordero, las cartolas y los Transbank del mismo mes. Sigue siendo una sola conciliación por mes; el resultado anterior se reemplaza.
+- Al quitar un bordero se descartan su período cubierto y los pagos que solo venían en él, así no siguen cruzando con ventas. Los pagos que otro mes ya usó o dejó como pendientes se conservan.
+- Las observaciones y marcas de "revisado" se guardan al cambiar archivos y se vuelven a aplicar al conciliar: en ventas por categoría, código y fecha; en abonos por medio y fecha de abono; en pendientes por pago del bordero.
+
+Las categorías y reglas están en `conciliacion/motor/` (`categorias.py`, `cruce.py`, `abonos.py`). En **Parámetros** se editan:
+
+- tolerancia en pesos, similitud de códigos, días de holgura en cartola y días entre venta y bordero;
+- textos que identifican abonos Transbank en la cartola (`transbank, tbk`);
+- **medio probable según la cartola**: una regla `texto = medio` por línea, para orientar los abonos que llegaron al banco sin archivo Transbank (gana la primera que calce; si ninguna calza dice "Sin determinar");
+- **omitir archivos en moneda extranjera**: desmarcado, un Transbank o cartola en dólares bloquea la conciliación; marcado, se deja fuera con un aviso;
+- equivalencias Cod. Deb. → medio de pago.
+
+Cada conciliación guarda los parámetros con que se procesó y los muestra en el PDF y el Excel.
+
+### Conciliación en dólares
+
+La sección **Conciliación en US$** (`/dolares/`) es la app `web` de la rama `main`, incorporada sin cambiar su código Python (`web/` y `hotel/conciliacion/` son copia exacta de `main`). Solo se reescribió su plantilla `web/templates/procesamiento.html` con los estilos de la plataforma, manteniendo campos, textos y acciones. Se publican únicamente su vista de procesamiento y sus dos descargas Excel, y piden sesión como el resto (`hotel/urls.py`).
+
+Se suben ERP, Amex, Diners, Visa y Mastercard en dólares, banco y Transbank, y se pulsa "Analizar Archivos por ERP". Necesita internet: en cada carga consulta el dólar en mindicador.cl. Los bloques "Consolidado en Pesos", "Parametrización de valores" y "Enviar por Email" vienen sin funcionalidad desde `main`.
 
 ## Estructura
 
 ```
 proyecto/
-  hotel/                 configuración Django
+  hotel/                 configuración Django (+ conciliacion/: ETL de la app web, copia de main)
   conciliacion/
     lectores/            lectura y limpieza de cada Excel (bordero, transbank, cartola, detección)
     motor/               reglas puras con pandas: cruce de ventas, abonos, categorías, mensajes
@@ -46,6 +69,7 @@ proyecto/
     reportes/            datos.py (compartido), excel.py, pdf.py
     templates/, static/  interfaz
     tests/               pruebas (pytest)
+  web/                   conciliación en dólares (copia de la rama main; solo cambió su plantilla)
 ```
 
 ## Pruebas
@@ -54,4 +78,4 @@ proyecto/
 .venv\Scripts\python -m pytest
 ```
 
-Las pruebas de integración usan los archivos reales del hotel, que **no se suben a git** (tienen nombres de huéspedes). Por defecto se buscan en `../../referencia/datos de prueba 8 sept` (al lado del repositorio) o en la carpeta indicada en `CONCILIACION_DATOS_PRUEBA`. Si no están, esas pruebas se omiten.
+Las pruebas de integración usan los archivos reales del hotel, que **no se suben a git** (tienen nombres de huéspedes). Por defecto se buscan en `../../referencia/datos de prueba 8 sept` y `../../Datos de prueba octubre` (al lado del repositorio) o en las carpetas indicadas en `CONCILIACION_DATOS_PRUEBA` y `CONCILIACION_DATOS_OCTUBRE`. Si no están, esas pruebas se omiten.

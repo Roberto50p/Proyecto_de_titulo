@@ -56,6 +56,12 @@ Datos de prueba reales en `capstone-amor/referencia/datos de prueba 8 sept/` (fu
 - Cabecera: Cuenta N° (00-000-62110-02), Moneda, saldos. Movimientos con encabezado en la fila que contiene "Fecha" y "Descripción": Fecha | Descripción | Canal o Sucursal | Nro. Docto. | Cargos (CLP) | Abonos (CLP) | Saldo (CLP); orden descendente.
 - Abonos Transbank: descripción contiene "Transbank" o "Tbk" (patrones configurables). Ej. 08/09: "Abonos Realizados Por Transbank…" 861.527 (prepago) y 5.269.462 (débito); "Abono Comer. Tc Tbk…" 2.597.371 (crédito).
 
+### 5.4 Formatos de octubre 2026 (`capstone-amor/Datos de prueba octubre/`, fuera del repo)
+- **Bordero `.XLS`**: mismo contenido que 5.2, pero en Excel 4.0 (BIFF4 sin contenedor OLE, sin página de códigos). pandas/calamine no lo abre; se lee con `xlrd` como Windows-1252.
+- **Transbank `.xls`** (Excel 97-2003) con **Medio de pago: "Todos los medios de pago"**: el resumen es del archivo completo y el medio viene por fila (columna "Medio de pago" del detalle). Se separa por medio sumando el detalle (ventas válidas, comisión, IVA, total abono); si la suma no da el Total abono del archivo, se rechaza y se pide un archivo por medio. Cada medio genera su propio resultado de abono contra la cartola.
+- **Abono en dólares** (Moneda "Dólares", cuenta Banco de Chile USD): fuera de alcance; bloquea la conciliación o se omite con aviso según el parámetro "Omitir archivos en moneda extranjera".
+- **Cartola BancoEstado "Cartola Histórica"** (`.xlsx`, una por número de cartola): hoja "Resumen" (N° Cuenta Corriente 00000523356, Fecha Inicio/Final, saldos con "$") y hoja "Movimientos" (Fecha | Sucursal | N° Cuenta Corriente | Alias | N° Cartola | N° Operación | Descripción | Cheques / Cargos | Depósitos / Abonos | Saldo). Abonos Transbank: "Abono transbank tarjeta debito" y "Pagos varios transbank rut 96689310-9"; el medio de esta última no está confirmado, por eso el "medio probable" se configura en Parámetros.
+
 ## 6. Clasificación de resultados
 
 Cada registro Transbank (venta), registro de bordero (pago con tarjeta) y archivo Transbank (abono) termina en exactamente una categoría. Tipo: **Dato** (corregir en sistema del hotel), **Operación** (revisar con Transbank/banco), **Aviso** (no es falla), **Pendiente**.
