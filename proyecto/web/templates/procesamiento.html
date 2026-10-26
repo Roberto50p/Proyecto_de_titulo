@@ -1,0 +1,163 @@
+{% extends "conciliacion/base.html" %}
+{% comment %}
+  Conciliación en dólares (app "web" de la rama main). Solo cambia la presentación para usar los estilos de la
+  plataforma: se mantienen los mismos campos, nombres, acciones, textos y datos que entrega la vista.
+{% endcomment %}
+{% block titulo %}Conciliación en dólares{% endblock %}
+{% block contenido %}
+<header class="cabecera">
+  <div>
+    <p class="sobretitulo">Procesamiento de Achivos</p>
+    <h1>v.1.0 Sistema Hotel San Francisco</h1>
+  </div>
+</header>
+
+<div class="dos-columnas">
+  <!-- primera columna -->
+  <div>
+    <section class="bloque">
+      <h2>Parametrizacion de Valores</h2>
+      <div class="pares-campos">
+        <label for="campo1">Monto en Dolares:</label>
+        <input type="text" id="campo1" placeholder="US$0">
+        <label for="campo1">Monto en Pesos:</label>
+        <input type="text" id="campo1" placeholder="US$0">
+      </div>
+      <div class="acciones"><button type="button" class="boton boton-principal boton-ancho">Cargar</button></div>
+    </section>
+
+    <!-- analizaremos primero los datos en dolares -->
+    <section class="bloque">
+      <h2>Analisis de Consolidado en Dolares</h2>
+      <form action="{% url 'PR' %}" method="post" enctype="multipart/form-data" class="carga-archivos">
+        {% csrf_token %}
+        <div class="grupo-archivos">
+          <input type="file" id="archivo1" name="archivo1">
+          <button class="boton boton-etiqueta" disabled id="miBoton">ERP</button>
+        </div>
+        <div class="grupo-archivos">
+          <input type="file" id="archivo2" name="archivo2">
+          <button class="boton boton-etiqueta" disabled id="miBoton">Dolar Amex</button>
+          <input type="file" id="archivo3" name="archivo3">
+          <button class="boton boton-etiqueta" disabled id="miBoton">Dinners</button>
+          <input type="file" id="archivo4" name="archivo4">
+          <button class="boton boton-etiqueta" disabled id="miBoton">Dolar Visa</button>
+          <input type="file" id="archivo5" name="archivo5">
+          <button class="boton boton-etiqueta" disabled id="miBoton">Mastercard</button>
+        </div>
+        <div class="grupo-archivos">
+          <input type="file" id="archivo6" name="archivo6">
+          <button class="boton boton-etiqueta" id="miBoton" disabled>Banco</button>
+          <input type="file" id="archivo7" name="archivo7">
+          <button class="boton boton-etiqueta" id="miBoton" disabled>Transbank</button>
+        </div>
+        <div class="acciones acciones-columna">
+          <button type="submit" class="boton boton-principal boton-ancho">Analizar Archivos por ERP</button>
+          <a href="{% url 'descargar_excel' %}" class="boton boton-ancho">Descargar Excel Transacciones Ubicadas</a>
+          <a href="{% url 'descargar_excel_nopresente' %}" class="boton boton-ancho">Descargar Excel Transacciones No Ubicadas</a>
+        </div>
+      </form>
+    </section>
+
+    <!-- inicio grafico de reportes Dolar -->
+    <section class="bloque">
+      <h2>Hoteleria San Francisco: Dolar</h2>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Cuenta</th><th class="num">Ventas CM</th><th class="num">Ventas TBK</th><th class="num">Diferencia</th></tr></thead>
+          <tbody>
+            {% for item in data_dolar %}
+            <tr>
+              {% for clave, valor in item.items %}
+                {% if clave == "Total" %}<td class="celda-total">{{ valor }}</td>{% else %}<td{% if not forloop.first %} class="num"{% endif %}>{{ valor }}</td>{% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- segunda columna -->
+  <div>
+    <!-- analisis consolidado en pesos -->
+    <section class="bloque">
+      <h2>Analisis de Consolidado en Pesos (CLP)</h2>
+      <div class="carga-archivos">
+        <div class="grupo-archivos">
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">ERP</button>
+        </div>
+        <div class="grupo-archivos">
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">Amex</button>
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">Dinners</button>
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">Visa</button>
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">Mastercard</button>
+          <input type="file" id="archivo1">
+          <button class="boton boton-etiqueta">Debito</button>
+        </div>
+        <div class="grupo-archivos">
+          <input type="file" id="archivo6" name="archivo6">
+          <button class="boton boton-etiqueta">Banco</button>
+          <input type="file" id="archivo7" name="archivo7">
+          <button class="boton boton-etiqueta">Transbank</button>
+        </div>
+        <div class="acciones acciones-columna">
+          <button type="button" class="boton boton-principal boton-ancho">Analizar Archivos</button>
+          <button type="button" class="boton boton-ancho">Abrir Reporte</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="bloque">
+      <h2>Resumen General</h2>
+      <div class="tabla-envoltura">
+        <table>
+          <thead><tr><th>Cuenta</th><th class="num">Ventas CM</th><th class="num">Ventas TBK</th><th class="num">Diferencia</th></tr></thead>
+          <tbody>
+            {% for item in data %}
+            <tr>
+              {% for clave, valor in item.items %}
+                {% if clave == "Total" %}<td class="celda-total">{{ valor }}</td>{% else %}<td{% if not forloop.first %} class="num"{% endif %}>{{ valor }}</td>{% endif %}
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="bloque">
+  <h2>Enviar Resultados por Email <span class="ayuda">Reportes Excel</span></h2>
+  <div class="filtros">
+    <div class="campo">
+      <label class="sr-only" for="correo-resultados">Tu correo electronico</label>
+      <input type="text" id="correo-resultados" placeholder="Tu correo electronico">
+    </div>
+    <button type="button" class="boton boton-principal">Enviar</button>
+  </div>
+</section>
+
+{% if ws == 1 %}
+  {% if abonado > 0 %}
+    <p class="mensaje mensaje-success" role="alert"><strong>Excelente!</strong> Existen {{ abonado }} en transacciones en Dolares que no fueron ubicadas en el ERP. y que se encontraron en el archivo de Transbank.</p>
+  {% else %}
+    <p class="mensaje mensaje-warning" role="alert"><strong>Atencion!</strong> No existen transacciones en Dolares que no hayan sido ubicadas en el ERP.{{ msg }}</p>
+  {% endif %}
+{% endif %}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      document.getElementById("miBoton").addEventListener("click", function() {
+        event.preventDefault(); // Evita que recargue
+      });
+    });
+</script>
+{% endblock %}

@@ -8,7 +8,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Los secretos se leen del entorno. Los valores por defecto sirven solo para desarrollo local.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "solo-desarrollo-cambiar-en-produccion")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+# Los dominios de ngrok permiten mostrar la app desde el PC local con un túnel.
+ALLOWED_HOSTS = os.environ.get(
+    "DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,.ngrok-free.app,.ngrok-free.dev,.ngrok.app,.ngrok.dev"
+).split(",")
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "DJANGO_CSRF_TRUSTED_ORIGINS",
+    "https://*.ngrok-free.app,https://*.ngrok-free.dev,https://*.ngrok.app,https://*.ngrok.dev",
+).split(",")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -19,6 +26,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.humanize",
     "conciliacion",
+    # Conciliación en dólares (app "web" traída tal cual desde la rama main).
+    "web",
 ]
 
 MIDDLEWARE = [
@@ -88,4 +97,9 @@ LOGOUT_REDIRECT_URL = "login"
 CONCILIACION_DATOS_PRUEBA = os.environ.get(
     "CONCILIACION_DATOS_PRUEBA",
     str(BASE_DIR.parent.parent / "referencia" / "datos de prueba 8 sept"),
+)
+# Archivos de octubre: bordero .XLS de FrontOffice, cartolas BancoEstado y Transbank con todos los medios.
+CONCILIACION_DATOS_OCTUBRE = os.environ.get(
+    "CONCILIACION_DATOS_OCTUBRE",
+    str(BASE_DIR.parent.parent / "Datos de prueba octubre"),
 )
