@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from .models import MESES, ParametrosSistema
+from .motor.parametros import leer_reglas_medio
 
 
 class MesForm(forms.Form):
@@ -19,7 +20,9 @@ class MesForm(forms.Form):
 class ParametrosForm(forms.ModelForm):
     class Meta:
         model = ParametrosSistema
-        fields = ["tolerancia_clp", "umbral_similitud", "dias_holgura", "ventana_dias", "patrones_cartola"]
+        fields = ["tolerancia_clp", "umbral_similitud", "dias_holgura", "ventana_dias", "patrones_cartola",
+                  "reglas_medio_cartola", "omitir_moneda_extranjera"]
+        widgets = {"reglas_medio_cartola": forms.Textarea(attrs={"rows": 4})}
         help_texts = {
             "tolerancia_clp": "Diferencia máxima en pesos para considerar que dos montos son iguales.",
             "umbral_similitud": "Entre 0,5 y 1. Qué tan parecido debe ser un código para sugerir un error de "
@@ -28,6 +31,11 @@ class ParametrosForm(forms.ModelForm):
             "ventana_dias": "Días máximos entre la venta en Transbank y su registro en el bordero.",
             "patrones_cartola": "Separados por coma. Una línea de la cartola es un abono Transbank si su "
                                 "descripción contiene alguno.",
+            "reglas_medio_cartola": "Una regla por línea: 'texto de la cartola = medio probable'. Se usa para "
+                                    "orientar los abonos que llegaron al banco sin archivo Transbank; gana la "
+                                    "primera que calce.",
+            "omitir_moneda_extranjera": "Si está marcado, los archivos Transbank o cartolas en dólares se dejan "
+                                        "fuera con un aviso; si no, bloquean la conciliación hasta quitarlos.",
         }
 
     def clean_umbral_similitud(self):
@@ -40,6 +48,14 @@ class ParametrosForm(forms.ModelForm):
         valor = self.cleaned_data["patrones_cartola"]
         if not [p for p in valor.split(",") if p.strip()]:
             raise forms.ValidationError("Indica al menos un texto.")
+        return valor
+
+    def clean_reglas_medio_cartola(self):
+        valor = self.cleaned_data["reglas_medio_cartola"]
+        try:
+            leer_reglas_medio(valor)
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc)) from exc
         return valor
 
 

@@ -52,19 +52,29 @@ def nueva(request):
                   {"form": form, "existente": existente, "pasos": _pasos(1)})
 
 
+def _aviso_reabierta(request, conc):
+    messages.warning(request, f"{conc.etiqueta} volvió a borrador: conciliala de nuevo para ver el resultado con "
+                              "los archivos actuales. Tus observaciones se conservan.")
+
+
 @login_required
 def archivos(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
     if request.method == "POST":
+        procesada = conc.estado == Conciliacion.PROCESADA
         if "eliminar" in request.POST:
             ac = get_object_or_404(ArchivoCargado, pk=request.POST["eliminar"], conciliacion=conc)
-            if conc.estado == Conciliacion.PROCESADA:
-                servicio.reabrir(conc)
-                messages.warning(request, f"{conc.etiqueta} volvió a borrador: conciliala de nuevo para ver el "
-                                          "resultado con los archivos actuales.")
-            ac.archivo.delete(save=False)
-            ac.delete()
+            servicio.quitar_archivo(ac)
+            if procesada:
+                _aviso_reabierta(request, conc)
             messages.info(request, f"Se quitó {ac.nombre}.")
+            return redirect("conciliacion:archivos", conc.pk)
+        if "quitar_todos" in request.POST:
+            servicio.quitar_todos(conc)
+            if procesada:
+                _aviso_reabierta(request, conc)
+            messages.info(request, f"Se quitaron todos los archivos de {conc.etiqueta}. Sube los nuevos para "
+                                   "conciliarlo de nuevo.")
             return redirect("conciliacion:archivos", conc.pk)
         subidos = request.FILES.getlist("archivos")
         if not subidos:
@@ -75,6 +85,9 @@ def archivos(request, pk):
             if conc.archivos.filter(sha256=huella).exists():
                 messages.warning(request, f"Archivo duplicado: {f.name} ya estaba cargado; no se agregó de nuevo.")
                 continue
+            if conc.estado == Conciliacion.PROCESADA:
+                servicio.reabrir(conc)
+                _aviso_reabierta(request, conc)
             ac = ArchivoCargado(conciliacion=conc, nombre=f.name, sha256=huella)
             ac.archivo.save(f.name, f, save=False)
             ac.save()
