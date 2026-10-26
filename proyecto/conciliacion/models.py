@@ -1,7 +1,9 @@
 from django.conf import settings
 from django.db import models
 
+from .lectores.comunes import clave
 from .motor import categorias as cat
+from .motor.parametros import REGLAS_MEDIO_CARTOLA_INICIALES, escribir_reglas_medio
 
 MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
          "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -18,6 +20,9 @@ class ParametrosSistema(models.Model):
     ventana_dias = models.PositiveSmallIntegerField("Días máximos entre venta y registro en bordero", default=3)
     patrones_cartola = models.CharField("Textos que identifican abonos Transbank en la cartola",
                                         max_length=200, default="transbank, tbk")
+    reglas_medio_cartola = models.TextField("Medio probable según la descripción de la cartola", blank=True,
+                                            default=escribir_reglas_medio(REGLAS_MEDIO_CARTOLA_INICIALES))
+    omitir_moneda_extranjera = models.BooleanField("Omitir archivos en moneda extranjera", default=False)
 
     class Meta:
         verbose_name = "parámetros"
@@ -54,6 +59,9 @@ class Conciliacion(models.Model):
     creada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     creada_en = models.DateTimeField(auto_now_add=True)
     procesada_en = models.DateTimeField(null=True, blank=True)
+    # Revisado/observación de ventas, abonos y pendientes, guardados al deshacer el resultado (al cambiar archivos o
+    # reprocesar) para volver a aplicarlos cuando se procese de nuevo.
+    observaciones = models.JSONField(default=dict, blank=True)
 
     class Meta:
         unique_together = [("anio", "mes")]
@@ -75,7 +83,10 @@ class ArchivoCargado(models.Model):
 
     conciliacion = models.ForeignKey(Conciliacion, related_name="archivos", on_delete=models.CASCADE)
     tipo = models.CharField(max_length=12, choices=TIPOS, default=DESCONOCIDO)
-    medio = models.CharField(max_length=10, choices=MEDIO_CHOICES, blank=True)
+    medio = models.CharField(max_length=10, choices=MEDIO_CHOICES, blank=True)  # vacío: todos los medios
+    # Transbank: medio -> {total_ventas, comision, iva_comision, total_abono}. Un archivo puede traer varios medios.
+    por_medio = models.JSONField(default=dict, blank=True)
+    banco = models.CharField(max_length=40, blank=True)
     archivo = models.FileField(upload_to="cargas/%Y/%m/")
     nombre = models.CharField(max_length=255)
     sha256 = models.CharField(max_length=64)
@@ -96,6 +107,17 @@ class ArchivoCargado(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def etiqueta_medio(self) -> str:
+        if self.medio:
+            return self.get_medio_display()
+        return ", ".join(cat.ETIQUETA_MEDIO[m] for m in cat.MEDIOS if m in self.por_medio)
+
+    @property
+    def moneda_extranjera(self) -> bool:
+        """Transbank o cartola cuya moneda no es pesos (esta versión concilia solo pesos)."""
+        return self.tipo in (self.TRANSBANK, self.CARTOLA) and not clave(self.moneda).startswith("pesos")
 
 
 class CoberturaBordero(models.Model):
@@ -123,8 +145,8 @@ class PagoBordero(models.Model):
     usuario = models.CharField(max_length=40, blank=True)
     designacion = models.CharField(max_length=120, blank=True)
     invalido = models.BooleanField(default=False)
-    archivo = models.ForeignKey(ArchivoCargado, null=True, blank=True, related_name="pagos",
-                                on_delete=models.SET_NULL)
+    # Borderos que traen este pago (se traslapan entre meses). Al quitar el último, el pago deja de existir.
+    archivos = models.ManyToManyField(ArchivoCargado, related_name="pagos", blank=True)
     conciliacion = models.ForeignKey(Conciliacion, null=True, blank=True, related_name="pagos_conciliados",
                                      on_delete=models.SET_NULL)
 
@@ -189,7 +211,7 @@ class VentaTransbank(models.Model):
 
 class ResultadoAbono(models.Model):
     conciliacion = models.ForeignKey(Conciliacion, related_name="abonos", on_delete=models.CASCADE)
-    archivo = models.OneToOneField(ArchivoCargado, related_name="resultado_abono", on_delete=models.CASCADE)
+    archivo = models.ForeignKey(ArchivoCargado, related_name="resultados_abono", on_delete=models.CASCADE)
     medio = models.CharField(max_length=10, choices=MEDIO_CHOICES)
     fecha_abono = models.DateField()
     total_abono = models.BigIntegerField()
@@ -204,6 +226,7 @@ class ResultadoAbono(models.Model):
 
     class Meta:
         ordering = ["medio", "fecha_abono"]
+        constraints = [models.UniqueConstraint(fields=["archivo", "medio"], name="abono_unico_por_archivo_y_medio")]
 
     @property
     def tipo(self) -> str:
@@ -221,11 +244,7 @@ class MovimientoCartola(models.Model):
     saldo = models.BigIntegerField(default=0)
     es_transbank = models.BooleanField(default=False)
     conciliado = models.BooleanField(default=False)
-
-    @property
-    def medio_probable(self) -> str:
-        """Las líneas 'Abono Comer. Tc Tbk' son de crédito; las demás de débito o prepago."""
-        return "Crédito" if "tc tbk" in self.descripcion.lower() else "Débito o prepago"
+    medio_probable = models.CharField(max_length=60, blank=True)
 
     class Meta:
         ordering = ["fecha"]
