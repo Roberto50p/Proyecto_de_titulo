@@ -132,6 +132,10 @@ input[type=file]::file-selector-button {
   border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); color: var(--tinta);
 }
 input[type=file]::file-selector-button:hover { border-color: var(--tinta-suave); }
+/* Selector de archivo en español (archivos.js reemplaza al control nativo). */
+.selector-archivo { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.selector-archivo .boton { min-height: 40px; padding: .45rem 1rem; flex: none; }
+.selector-archivo-estado { min-width: 0; color: var(--tinta-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Un campo: etiqueta, control y pie (ayuda y errores). */
 .campo { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
@@ -259,6 +263,11 @@ td .etiqueta { white-space: normal; border-radius: var(--radio); max-width: 13re
   border: 1px solid var(--borde-campo); border-radius: var(--radio); background: var(--papel);
 }
 .grupo-archivos input[type=file]::file-selector-button { min-height: 30px; padding: .2rem .75rem; margin-right: .6rem; font-size: .88rem; }
+.grupo-archivos .selector-archivo {
+  min-height: 40px; padding: .25rem; gap: .6rem; font-size: .9rem;
+  border: 1px solid var(--borde-campo); border-radius: var(--radio); background: var(--papel);
+}
+.grupo-archivos .selector-archivo .boton { min-height: 30px; padding: .2rem .75rem; font-size: .88rem; }
 .boton-etiqueta { min-height: 40px; padding: .4rem .75rem; background: var(--pendiente-fondo); color: var(--tinta); font-size: .9rem; cursor: default; }
 .boton-etiqueta:hover { border-color: var(--linea); }
 .boton-etiqueta[disabled] { opacity: 1; cursor: default; }
