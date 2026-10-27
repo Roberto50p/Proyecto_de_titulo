@@ -10,7 +10,12 @@ El mes se cierra por **fecha de abono**. El resultado muestra las discrepancias 
 
 Diseño: `docs/superpowers/specs/2026-10-23-conciliacion-mensual-design.md` · Plan: `docs/superpowers/plans/2026-10-23-conciliacion-mensual.md`.
 
-## Instalación (Windows)
+# DEMO desplegada en VERCEL
+Se ha desplegado una DEMO del proyecto para el cliente
+https://conciliacionhotelplaza.vercel.app/
+
+# Instalacion Desarrollo
+## Windows
 Ambiente para las herramientas de desarrollo
 ```bat
 cd proyecto
