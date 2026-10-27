@@ -112,8 +112,11 @@ if os.environ.get("AWS_STORAGE_BUCKET_NAME"):
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
-    # Credenciales y bucket: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME y
-    # AWS_S3_ENDPOINT_URL (https://<cuenta>.r2.cloudflarestorage.com), leídos del entorno por django-storages.
+    # django-storages lee estos valores de settings, no del entorno.
+    AWS_STORAGE_BUCKET_NAME = os.environ["AWS_STORAGE_BUCKET_NAME"]
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL")  # https://<cuenta>.r2.cloudflarestorage.com
+    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
     AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "auto")
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     AWS_DEFAULT_ACL = None

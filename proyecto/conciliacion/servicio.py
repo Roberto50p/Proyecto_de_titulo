@@ -63,10 +63,6 @@ def sha256_de(archivo) -> str:
 
 @contextmanager
 def ruta_local(ac: ArchivoCargado):
-    """Ruta en disco del archivo subido para los lectores.
-
-    Con almacenamiento remoto (Cloudflare R2 en Vercel) el archivo se copia a un temporal que se borra al salir.
-    """
     try:
         ruta = ac.archivo.path
     except NotImplementedError:  # el almacenamiento no tiene rutas locales
