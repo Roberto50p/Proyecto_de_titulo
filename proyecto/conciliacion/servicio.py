@@ -1,7 +1,11 @@
 """Servicio que lee los archivos de una conciliación, ejecuta el motor y guarda el resultado."""
 
 import hashlib
+import os
+import shutil
+import tempfile
 from collections import Counter, defaultdict
+from contextlib import contextmanager
 
 import pandas as pd
 from django.db import transaction
@@ -57,6 +61,28 @@ def sha256_de(archivo) -> str:
     return h.hexdigest()
 
 
+@contextmanager
+def ruta_local(ac: ArchivoCargado):
+    """Ruta en disco del archivo subido para los lectores.
+
+    Con almacenamiento remoto (Cloudflare R2 en Vercel) el archivo se copia a un temporal que se borra al salir.
+    """
+    try:
+        ruta = ac.archivo.path
+    except NotImplementedError:  # el almacenamiento no tiene rutas locales
+        ruta = None
+    if ruta:
+        yield ruta
+        return
+    sufijo = os.path.splitext(ac.archivo.name)[1]
+    with tempfile.NamedTemporaryFile(suffix=sufijo, delete=False) as tmp, ac.archivo.open("rb") as origen:
+        shutil.copyfileobj(origen, tmp)
+    try:
+        yield tmp.name
+    finally:
+        os.remove(tmp.name)
+
+
 # ---------------------------------------------------------------- lectura y validación
 
 
@@ -78,24 +104,25 @@ def leer_archivo(ac: ArchivoCargado) -> None:
 
     La moneda no se valida aquí: depende del parámetro "Omitir archivos en moneda extranjera" (ver validar).
     """
-    ruta = ac.archivo.path
     ac.error, ac.medio, ac.por_medio, ac.banco = "", "", {}, ""
     try:
-        ac.tipo = detectar(ruta)
-        if ac.tipo == ArchivoCargado.TRANSBANK:
-            a = leer_transbank(ruta)
-            ac.medio, ac.por_medio, ac.moneda, ac.cuenta = a.medio or "", a.resumen_por_medio, a.moneda, a.cuenta
-            ac.fecha_abono, ac.desde, ac.hasta = a.fecha_abono, a.ventas.fecha_venta.min(), a.ventas.fecha_venta.max()
-            ac.filas, ac.total_abono, ac.resumen = len(a.ventas), a.resumen["total_abono"], a.resumen
-            if not ac.moneda_extranjera:
-                ac.error = _error_transbank(a)
-        elif ac.tipo == ArchivoCargado.BORDERO:
-            b = leer_bordero(ruta)
-            ac.desde, ac.hasta, ac.filas = b.desde, b.hasta, len(b.movimientos)
-        else:
-            c = leer_cartola(ruta)
-            ac.banco, ac.cuenta, ac.moneda = c.banco, c.cuenta, c.moneda
-            ac.desde, ac.hasta, ac.filas = c.desde, c.hasta, len(c.movimientos)
+        with ruta_local(ac) as ruta:
+            ac.tipo = detectar(ruta)
+            if ac.tipo == ArchivoCargado.TRANSBANK:
+                a = leer_transbank(ruta)
+                ac.medio, ac.por_medio, ac.moneda, ac.cuenta = a.medio or "", a.resumen_por_medio, a.moneda, a.cuenta
+                ac.fecha_abono, ac.desde = a.fecha_abono, a.ventas.fecha_venta.min()
+                ac.hasta = a.ventas.fecha_venta.max()
+                ac.filas, ac.total_abono, ac.resumen = len(a.ventas), a.resumen["total_abono"], a.resumen
+                if not ac.moneda_extranjera:
+                    ac.error = _error_transbank(a)
+            elif ac.tipo == ArchivoCargado.BORDERO:
+                b = leer_bordero(ruta)
+                ac.desde, ac.hasta, ac.filas = b.desde, b.hasta, len(b.movimientos)
+            else:
+                c = leer_cartola(ruta)
+                ac.banco, ac.cuenta, ac.moneda = c.banco, c.cuenta, c.moneda
+                ac.desde, ac.hasta, ac.filas = c.desde, c.hasta, len(c.movimientos)
     except ArchivoNoReconocido as exc:
         ac.tipo, ac.error = ArchivoCargado.DESCONOCIDO, str(exc)
     except Exception as exc:  # archivo con el formato esperado pero dañado
@@ -253,7 +280,8 @@ def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:
     Un pago se identifica por fecha, hora, cuenta y Cod. Deb.; si el hotel corrigió el documento o el valor en
     FrontOffice y vuelve a exportar, se actualiza el mismo pago en vez de crear otro.
     """
-    b = leer_bordero(ac.archivo.path)
+    with ruta_local(ac) as ruta:
+        b = leer_bordero(ruta)
     CoberturaBordero.objects.get_or_create(desde=b.desde, hasta=b.hasta, archivo=ac)
     ids = []
     for fila in pagos_tarjeta(b.movimientos, params).to_dict("records"):
@@ -304,7 +332,8 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     for ac in archivos:
         if ac.tipo != ArchivoCargado.TRANSBANK:
             continue
-        a = leer_transbank(ac.archivo.path)
+        with ruta_local(ac) as ruta:
+            a = leer_transbank(ruta)
         for fila in a.ventas.to_dict("records"):
             ventas_obj.append(VentaTransbank(
                 conciliacion=conc, archivo=ac, fila=fila["fila"], medio=fila["medio"],
@@ -346,7 +375,11 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     Pendiente.objects.filter(pago_id__in=usados, abierto=True).update(abierto=False, cierre=conc)
 
     # Abonos contra cartola.
-    cartolas = [leer_cartola(ac.archivo.path) for ac in archivos if ac.tipo == ArchivoCargado.CARTOLA]
+    cartolas = []
+    for ac in archivos:
+        if ac.tipo == ArchivoCargado.CARTOLA:
+            with ruta_local(ac) as ruta:
+                cartolas.append(leer_cartola(ruta))
     if cartolas:
         movimientos = pd.concat([c.movimientos for c in cartolas], ignore_index=True)
         rango = (min(c.desde for c in cartolas), max(c.hasta for c in cartolas))

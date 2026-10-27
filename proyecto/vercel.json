@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "hotel/wsgi.py": {
+      "maxDuration": 60,
+      "excludeFiles": "{.venv/**,media/**,staticfiles/**,db.sqlite3,conciliacion/tests/**,web/templates/admin/src/**,web/templates/basura/**,web/static/scss/**,hotel/conciliacion/etl/*.ipynb}"
+    }
+  }
+}

@@ -19,7 +19,7 @@ py -3.14 -m venv .venv
 ```
 Instalación de las herramientas
 ```bat
-py -m pip install -r requirements.txt
+py -m pip install -r requirements-dev.txt
 py manage.py migrate
 py manage.py createsuperuser
 py manage.py runserver
@@ -28,6 +28,27 @@ py manage.py runserver
 Luego abrir http://127.0.0.1:8000 e ingresar con el usuario creado. También sirve `ejecutar_proyecto.bat` (migra y levanta el servidor).
 
 Variables de entorno opcionales: `DJANGO_SECRET_KEY`, `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS`, `CONCILIACION_DATOS_PRUEBA`, `CONCILIACION_DATOS_OCTUBRE`.
+
+`requirements.txt` tiene solo lo que usa la app en producción; `requirements-dev.txt` agrega las pruebas (`pytest`).
+
+## Despliegue en Vercel
+
+Vercel reconoce el proyecto por `manage.py` (Python 3.14 según `.python-version`), usa `hotel.wsgi.application` y ejecuta `collectstatic` en el build. Configurar en Vercel (Settings → General) **Root Directory = `proyecto`** y estas variables de entorno:
+
+- `DATABASE_URL`: PostgreSQL de **Neon** (Vercel la define al conectar Neon desde Storage/Marketplace).
+- `DJANGO_SECRET_KEY`: clave larga y aleatoria. `DEBUG` queda apagado en Vercel salvo `DJANGO_DEBUG=1`.
+- Archivos subidos en **Cloudflare R2**: `AWS_STORAGE_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_S3_ENDPOINT_URL` (`https://<id-cuenta>.r2.cloudflarestorage.com`).
+- Con dominio propio, agregarlo a `DJANGO_ALLOWED_HOSTS` y `DJANGO_CSRF_TRUSTED_ORIGINS` (estas variables reemplazan la lista por defecto).
+
+Las migraciones y el usuario se crean una vez desde el PC apuntando a Neon (`vercel env pull .env.local` o copiando `DATABASE_URL`):
+
+```bat
+set DATABASE_URL=postgresql://...
+py manage.py migrate
+py manage.py createsuperuser
+```
+
+Límite: Vercel acepta peticiones de hasta **4,5 MB**, así que cada envío de archivos debe pesar menos que eso (subir los archivos en grupos si el bordero es grande).
 
 ## Uso
 

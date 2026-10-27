@@ -7,6 +7,7 @@ reportlab>=4.4
 # App "web" (conciliación en dólares): consulta el dólar en mindicador.cl y genera códigos QR.
 httpx>=0.28
 qrcode>=8.0
-pytest>=8
-pytest-django>=4.9
-pypdf>=5
+Pillow>=11
+# Producción en Vercel: PostgreSQL (Neon) y archivos subidos en Cloudflare R2 (API S3).
+psycopg[binary]>=3.2
+django-storages[s3]>=1.14
