@@ -12,6 +12,8 @@ Diseño: `docs/superpowers/specs/2026-10-23-conciliacion-mensual-design.md` · P
 
 # DEMO desplegada en VERCEL
 Se ha desplegado una DEMO del proyecto para el cliente
+Usuario: admin
+Contraseña: admin
 https://conciliacionhotelplaza.vercel.app/
 
 # Instalacion Desarrollo
