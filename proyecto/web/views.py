@@ -46,7 +46,7 @@ informacion_proceso=[]
 
 data_dolar=[]
 async def obtener_datos():
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=7) as client:
         response = await client.get("https://mindicador.cl/api/dolar")  # Método GET
         response.raise_for_status()  # Lanza error si hay problema (4xx o 5xx)
         datos = response.json()      # Convierte respuesta JSON en dict de Python
@@ -72,7 +72,10 @@ def inicio(request):
     return render(request,"index.html",mensaje)
 
 def procesamiento(request):
-    asyncio.run(obtener_datos())
+    try:
+        asyncio.run(obtener_datos())
+    except httpx.HTTPError as exc:  # mindicador.cl caído o lento: el valor no se muestra en la página
+        print(f"No se pudo consultar mindicador.cl: {exc}")
     # definicion de variables que capturan las sumas por tipo de tarjeta
     diccionario = {}
     suma_amex=0

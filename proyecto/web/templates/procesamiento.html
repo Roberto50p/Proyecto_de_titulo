@@ -23,7 +23,7 @@
         <label for="campo1">Monto en Pesos:</label>
         <input type="text" id="campo1" placeholder="US$0">
       </div>
-      <div class="acciones"><button type="button" class="boton boton-principal boton-ancho">Cargar</button></div>
+      <div class="acciones"><button type="button" class="boton boton-principal col-4">Cargar</button></div>
     </section>
 
     <!-- analizaremos primero los datos en dolares -->
@@ -67,60 +67,6 @@
           <thead><tr><th>Cuenta</th><th class="num">Ventas CM</th><th class="num">Ventas TBK</th><th class="num">Diferencia</th></tr></thead>
           <tbody>
             {% for item in data_dolar %}
-            <tr>
-              {% for clave, valor in item.items %}
-                {% if clave == "Total" %}<td class="celda-total">{{ valor }}</td>{% else %}<td{% if not forloop.first %} class="num"{% endif %}>{{ valor }}</td>{% endif %}
-              {% endfor %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </div>
-
-  <!-- segunda columna -->
-  <div>
-    <!-- analisis consolidado en pesos -->
-    <section class="bloque">
-      <h2>Analisis de Consolidado en Pesos (CLP)</h2>
-      <div class="carga-archivos">
-        <div class="grupo-archivos">
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">ERP</button>
-        </div>
-        <div class="grupo-archivos">
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">Amex</button>
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">Dinners</button>
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">Visa</button>
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">Mastercard</button>
-          <input type="file" id="archivo1">
-          <button class="boton boton-etiqueta">Debito</button>
-        </div>
-        <div class="grupo-archivos">
-          <input type="file" id="archivo6" name="archivo6">
-          <button class="boton boton-etiqueta">Banco</button>
-          <input type="file" id="archivo7" name="archivo7">
-          <button class="boton boton-etiqueta">Transbank</button>
-        </div>
-        <div class="acciones acciones-columna">
-          <button type="button" class="boton boton-principal boton-ancho">Analizar Archivos</button>
-          <button type="button" class="boton boton-ancho">Abrir Reporte</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="bloque">
-      <h2>Resumen General</h2>
-      <div class="tabla-envoltura">
-        <table>
-          <thead><tr><th>Cuenta</th><th class="num">Ventas CM</th><th class="num">Ventas TBK</th><th class="num">Diferencia</th></tr></thead>
-          <tbody>
-            {% for item in data %}
             <tr>
               {% for clave, valor in item.items %}
                 {% if clave == "Total" %}<td class="celda-total">{{ valor }}</td>{% else %}<td{% if not forloop.first %} class="num"{% endif %}>{{ valor }}</td>{% endif %}
