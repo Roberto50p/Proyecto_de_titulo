@@ -17,7 +17,7 @@ def cliente(client, db, media_temporal):
 
 def test_lista_muestra_conciliaciones(cliente, septiembre_procesado):
     html = cliente.get(reverse("conciliacion:lista")).content.decode()
-    assert "Septiembre 2026" in html
+    assert f"Conciliación N° {septiembre_procesado.pk}" in html
     assert reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) in html
     assert "$8.728.360" in html and ">14<" in html
 
@@ -26,7 +26,8 @@ def test_pendientes_abiertos(cliente, septiembre_procesado):
     html = cliente.get(reverse("conciliacion:pendientes")).content.decode()
     pendiente = Pendiente.objects.filter(abierto=True).select_related("pago").first()
     assert "123 pendientes abiertos" in html
-    assert pendiente.pago.documento in html and "Septiembre 2026" in html
+    assert pendiente.pago.documento in html and f"Conciliación N° {septiembre_procesado.pk}" in html
+    assert "Conciliación de origen" in html
 
 
 def test_comentar_pendiente(cliente, septiembre_procesado):

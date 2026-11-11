@@ -108,8 +108,8 @@ def utilizables(conc: Conciliacion) -> list[ArchivoCargado]:
     return [a for a in conc.archivos.all() if not a.error and not a.moneda_extranjera]
 
 
-def validar(conc: Conciliacion) -> list[str]:
-    """Errores que impiden conciliar."""
+def validar(conc: Conciliacion, choques: dict | None = None) -> list[str]:
+    """Errores que impiden conciliar. `choques` son los conflictos(conc) ya calculados, para no releer los archivos."""
     errores = []
     archivos = list(conc.archivos.all())
     for a in archivos:
@@ -127,10 +127,10 @@ def validar(conc: Conciliacion) -> list[str]:
         if tipo not in tipos:
             errores.append(f"Falta {nombre}.")
     transbank = [a for a in validos if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono]
-    for a in transbank:
-        if (a.fecha_abono.year, a.fecha_abono.month) != (conc.anio, conc.mes):
-            errores.append(f"{a.nombre}: la fecha de abono {fmt_fecha(a.fecha_abono)} no pertenece a "
-                           f"{conc.etiqueta}.")
+    for ac_id, otros in (conflictos(conc) if choques is None else choques).items():
+        nombre = next(a.nombre for a in validos if a.id == ac_id)
+        for otro in otros:
+            errores.append(f"{nombre}: ya se concilió en {otro.conciliacion.etiqueta} ({otro.nombre}).")
     # Un archivo con todos los medios cuenta para cada medio que trae.
     repetidos = Counter((medio, a.fecha_abono) for a in transbank for medio in a.por_medio)
     for (medio, dia), n in repetidos.items():
@@ -160,6 +160,66 @@ def advertencias(conc: Conciliacion) -> list[str]:
             if not any(d <= a.fecha_abono <= h for d, h in cartolas):
                 avisos.append(f"{a.nombre}: la cartola no cubre el abono del {fmt_fecha(a.fecha_abono)}.")
     return avisos
+
+
+# ---------------------------------------------------------------- archivos ya conciliados
+
+
+def _clave_venta_unica(medio, codigo_norm, cuota_num, fecha_venta, monto_original) -> tuple:
+    """Identifica una venta entre conciliaciones: código de autorización + medio + N° de cuota (las cuotas comparten
+    código) + fecha y monto de la venta (los códigos de autorización se repiten con el tiempo)."""
+    cuota = 0 if cuota_num is None or pd.isna(cuota_num) else int(cuota_num)
+    return medio, codigo_norm, cuota, pd.Timestamp(fecha_venta).date(), int(monto_original)
+
+
+def _claves_ventas(ac: ArchivoCargado) -> set[tuple]:
+    ventas = leer_transbank(ac.archivo.path).ventas
+    return {_clave_venta_unica(f["medio"], f["codigo_norm"], f["cuota_num"], f["fecha_venta"], f["monto_original"])
+            for f in ventas.to_dict("records") if f["tipo_movimiento"].lower() == "venta" and f["codigo_norm"]}
+
+
+def conflictos(conc: Conciliacion) -> dict[int, list[ArchivoCargado]]:
+    """Archivos Transbank de esta conciliación que ya se conciliaron en otra: id del archivo -> archivos de las otras
+    conciliaciones ya procesadas que lo repiten (mismo archivo, mismo medio y día de abono, o la misma venta). Los
+    borradores no cuentan (gana la que se procese primero), ni el bordero ni la cartola: se pueden repetir sin
+    duplicar nada."""
+    propios = [a for a in utilizables(conc) if a.tipo == ArchivoCargado.TRANSBANK]
+    if not propios:
+        return {}
+    otros = [a for a in ArchivoCargado.objects.filter(tipo=ArchivoCargado.TRANSBANK,
+                                                       conciliacion__estado=Conciliacion.PROCESADA)
+             .exclude(conciliacion=conc).select_related("conciliacion") if not a.error and not a.moneda_extranjera]
+    claves = {a.id: _claves_ventas(a) for a in propios}
+    codigos = {k[1] for ks in claves.values() for k in ks}
+    ya_conciliadas = defaultdict(set)
+    for v in (VentaTransbank.objects.exclude(conciliacion=conc)
+              .filter(es_venta=True, codigo_norm__in=codigos, conciliacion__estado=Conciliacion.PROCESADA)
+              .select_related("archivo__conciliacion")):
+        clave_v = _clave_venta_unica(v.medio, v.codigo_norm, v.cuota_num, v.fecha_venta, v.monto_original)
+        ya_conciliadas[clave_v].add(v.archivo)
+
+    resultado = {}
+    for a in propios:
+        choques = {o for o in otros if o.sha256 == a.sha256
+                   or (o.fecha_abono == a.fecha_abono and set(o.por_medio) & set(a.por_medio))}
+        for k in claves[a.id]:
+            choques |= {o for o in ya_conciliadas.get(k, ()) if not o.error and not o.moneda_extranjera}
+        if choques:
+            resultado[a.id] = sorted(choques, key=lambda o: (o.conciliacion_id, o.nombre))
+    return resultado
+
+
+@transaction.atomic
+def reemplazar(ac: ArchivoCargado) -> list[Conciliacion]:
+    """Quita de las otras conciliaciones los archivos que repiten a `ac` (vuelven a borrador conservando sus
+    observaciones) y devuelve las conciliaciones afectadas."""
+    afectadas = []
+    for otro in conflictos(ac.conciliacion).get(ac.id, []):
+        otro = ArchivoCargado.objects.select_related("conciliacion").get(pk=otro.pk)  # estado al día
+        quitar_archivo(otro)
+        if otro.conciliacion not in afectadas:
+            afectadas.append(otro.conciliacion)
+    return afectadas
 
 
 # ---------------------------------------------------------------- procesamiento
@@ -201,7 +261,7 @@ def _observacion(conc: Conciliacion, grupo: str, clave_registro: str) -> dict:
 def _deshacer(conc: Conciliacion) -> None:
     """Revierte el resultado anterior de la conciliación; sus observaciones quedan en conc.observaciones.
 
-    Los pendientes que ya cerró un mes posterior se mantienen: su historia pertenece a ese mes.
+    Los pendientes que ya cerró una conciliación posterior se mantienen: su historia pertenece a esa conciliación.
     """
     _guardar_observaciones(conc)
     Pendiente.objects.filter(cierre=conc).update(abierto=True, cierre=None)
@@ -225,7 +285,7 @@ def quitar_archivo(ac: ArchivoCargado) -> None:
     """Quita un archivo de la conciliación; si estaba procesada vuelve a borrador.
 
     Un bordero se lleva su cobertura y los pagos que solo venían en él, salvo que otra conciliación los haya usado
-    o dejado como pendientes: esa historia pertenece a ese mes.
+    o dejado como pendientes: esa historia pertenece a esa conciliación.
     """
     conc = ac.conciliacion
     if conc.estado == Conciliacion.PROCESADA:
@@ -241,7 +301,7 @@ def quitar_archivo(ac: ArchivoCargado) -> None:
 
 
 def quitar_todos(conc: Conciliacion) -> None:
-    """Deja la conciliación sin archivos para volver a conciliar el mismo mes con otros."""
+    """Deja la conciliación sin archivos para volver a conciliarla con otros."""
     with transaction.atomic():
         for ac in list(conc.archivos.all()):
             quitar_archivo(ac)
@@ -299,7 +359,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     } for p in libres])
     pagos_por_id = {p.id: p for p in libres}
 
-    # Transbank: ventas de todos los archivos del mes.
+    # Transbank: ventas de todos los archivos de la conciliación.
     ventas_obj = []
     for ac in archivos:
         if ac.tipo != ArchivoCargado.TRANSBANK:
@@ -340,7 +400,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         v.revisado, v.observacion = guardada["revisado"], guardada["observacion"]
     VentaTransbank.objects.bulk_create(ventas_obj)
 
-    # Pagos usados quedan conciliados en este mes; si eran pendientes, se cierran.
+    # Pagos usados quedan conciliados en esta conciliación; si eran pendientes, se cierran.
     usados = [v.pago_id for v in ventas_obj if v.pago_id]
     PagoBordero.objects.filter(id__in=usados).update(conciliacion=conc)
     Pendiente.objects.filter(pago_id__in=usados, abierto=True).update(abierto=False, cierre=conc)
@@ -379,7 +439,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         **_observacion(conc, "abonos", _clave_abono(r["medio"], r["fecha_abono"])),
     ) for r in resultados_abono])
 
-    # Pagos del bordero de este mes que siguen sin abono → pendientes.
+    # Pagos del bordero de esta conciliación que siguen sin abono → pendientes.
     sin_abono = PagoBordero.objects.filter(id__in=pagos_del_mes, conciliacion__isnull=True, invalido=False,
                                            pendiente__isnull=True)
     Pendiente.objects.bulk_create([Pendiente(
@@ -398,7 +458,7 @@ def procesar(conc: Conciliacion) -> Conciliacion:
 
 
 def _cuotas_anteriores(conc: Conciliacion, ventas: list[VentaTransbank]) -> None:
-    """Cuota k>1 cuya venta original ya se concilió en otro mes → queda conciliada con nota."""
+    """Cuota k>1 cuya venta original ya se concilió en otra conciliación → queda conciliada con nota."""
     for v in ventas:
         if not v.cuota_num or v.cuota_num <= 1 or v.categoria not in (cat.CUOTA, cat.FUERA_PERIODO, cat.SIN_BORDERO):
             continue
@@ -466,6 +526,15 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
 
 
 def cartola_sin_archivo(conc: Conciliacion) -> list[MovimientoCartola]:
-    """Abonos Transbank que llegaron al banco en el mes pero cuyo archivo Transbank no se cargó."""
-    return list(conc.movimientos_cartola.filter(es_transbank=True, conciliado=False, fecha__year=conc.anio,
-                                                fecha__month=conc.mes).order_by("fecha"))
+    """Abonos Transbank que llegaron al banco en los días de abono conciliados pero cuyo archivo Transbank no se
+    cargó. Los días siguientes pertenecen a la próxima conciliación diaria, y las líneas que ya calzaron en otra
+    conciliación (la misma cartola se reutiliza) no se marcan."""
+    dias = [a.fecha_abono for a in utilizables(conc) if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono]
+    if not dias:
+        return []
+    lineas = conc.movimientos_cartola.filter(es_transbank=True, conciliado=False, fecha__gte=min(dias),
+                                             fecha__lte=max(dias)).order_by("fecha")
+    en_otra = set(MovimientoCartola.objects.exclude(conciliacion=conc)
+                  .filter(es_transbank=True, conciliado=True, fecha__gte=min(dias), fecha__lte=max(dias))
+                  .values_list("fecha", "abono", "descripcion"))
+    return [m for m in lineas if (m.fecha, m.abono, m.descripcion) not in en_otra]

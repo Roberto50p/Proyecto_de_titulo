@@ -2,6 +2,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from django.utils import timezone
 
 from conciliacion.models import ArchivoCargado, Conciliacion
 
@@ -18,13 +19,13 @@ def subir(datos, nombre):
     return SimpleUploadedFile(nombre, (datos / nombre).read_bytes())
 
 
-def nueva(cliente, anio=2026, mes=9, **extra):
-    return cliente.post(reverse("conciliacion:nueva"), {"anio": anio, "mes": mes, **extra})
+def nueva(cliente):
+    return cliente.post(reverse("conciliacion:nueva"))
 
 
 def test_flujo_completo(cliente, datos_reales):
     r = nueva(cliente)
-    conc = Conciliacion.objects.get(anio=2026, mes=9)
+    conc = Conciliacion.objects.get()
     assert r.status_code == 302 and r.url == reverse("conciliacion:archivos", args=[conc.pk])
 
     r = cliente.post(reverse("conciliacion:archivos", args=[conc.pk]),
@@ -51,16 +52,43 @@ def test_flujo_completo(cliente, datos_reales):
     assert pdf["Content-Type"] == "application/pdf" and pdf.content.startswith(b"%PDF")
     xls = cliente.get(reverse("conciliacion:excel", args=[conc.pk]))
     assert xls["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    assert "conciliacion_2026_09.xlsx" in xls["Content-Disposition"]
+    hoy = timezone.localdate().strftime("%d-%m-%Y")
+    assert f'filename="conciliacion_{hoy}.xlsx"' in xls["Content-Disposition"]
+    assert f'filename="conciliacion_{hoy}.pdf"' in pdf["Content-Disposition"]
 
 
-def test_mes_existente_pide_confirmacion(cliente, septiembre_procesado):
+def test_nueva_dos_veces_no_crea_borradores_vacios(cliente):
+    nueva(cliente)
     r = nueva(cliente)
-    assert r.status_code == 200
-    html = r.content.decode()
-    assert "ya fue conciliado" in html and 'name="confirmar"' in html
-    r = nueva(cliente, confirmar="1")
-    assert r.status_code == 302 and r.url == reverse("conciliacion:archivos", args=[septiembre_procesado.pk])
+    assert Conciliacion.objects.count() == 1
+    assert r.status_code == 302 and r.url == reverse("conciliacion:archivos", args=[Conciliacion.objects.get().pk])
+
+
+def test_nueva_se_puede_repetir_cuando_la_anterior_tiene_archivos(cliente, septiembre_procesado):
+    nueva(cliente)
+    assert Conciliacion.objects.count() == 2
+
+
+def test_archivos_no_enlaza_a_nueva_por_get(cliente):
+    nueva(cliente)
+    conc = Conciliacion.objects.get()
+    html = cliente.get(reverse("conciliacion:archivos", args=[conc.pk])).content.decode()
+    assert f'href="{reverse("conciliacion:nueva")}"' not in html
+
+
+def test_nueva_no_reutiliza_una_conciliacion_ya_procesada_y_vaciada(cliente, septiembre_procesado):
+    from conciliacion.servicio import quitar_todos
+
+    quitar_todos(septiembre_procesado)
+    r = nueva(cliente)
+    assert Conciliacion.objects.count() == 2
+    assert r.url != reverse("conciliacion:archivos", args=[septiembre_procesado.pk])
+
+
+def test_lista_no_pide_mes(cliente):
+    html = cliente.get(reverse("conciliacion:lista")).content.decode()
+    assert "Mes de abono" not in html
+    assert f'<form method="post" action="{reverse("conciliacion:nueva")}"' in html
 
 
 def test_archivo_no_reconocido_bloquea(cliente, tmp_path):
@@ -74,15 +102,6 @@ def test_archivo_no_reconocido_bloquea(cliente, tmp_path):
     r = cliente.post(reverse("conciliacion:procesar", args=[conc.pk]))
     assert r.status_code == 302 and r.url == reverse("conciliacion:revision", args=[conc.pk])
     assert Conciliacion.objects.get().estado == Conciliacion.BORRADOR
-
-
-def test_abono_fuera_del_mes(cliente, datos_reales):
-    nueva(cliente, mes=10)
-    conc = Conciliacion.objects.get()
-    cliente.post(reverse("conciliacion:archivos", args=[conc.pk]),
-                 {"archivos": [subir(datos_reales, "DEBITOS TBK 08-09.xlsx")]})
-    html = cliente.get(reverse("conciliacion:revision", args=[conc.pk])).content.decode()
-    assert "la fecha de abono 08/09/2026 no pertenece a Octubre 2026" in html
 
 
 def test_archivo_duplicado(cliente, datos_reales):
@@ -111,7 +130,7 @@ def test_requiere_login(client, db, nombre):
 
 
 def test_requiere_login_detalle(client, db):
-    conc = Conciliacion.objects.create(anio=2026, mes=9)
+    conc = Conciliacion.objects.create()
     for nombre in ["archivos", "revision", "detalle", "pdf", "excel"]:
         r = client.get(reverse(f"conciliacion:{nombre}", args=[conc.pk]))
         assert r.status_code == 302 and r.url.startswith("/login/")

@@ -4,7 +4,7 @@
 {% block contenido %}
 <header class="cabecera">
   <div>
-    <h1>Conciliación {{ conc.etiqueta }}</h1>
+    <h1>{{ conc.etiqueta }}</h1>
     <p class="ayuda">Cierre por fecha de abono · {{ d.encabezado.cuenta }} · procesada {{ conc.procesada_en|date:"d/m/Y H:i" }}</p>
   </div>
   <div class="acciones">
@@ -58,7 +58,7 @@
   {% if d.cartola_sin_archivo %}
   <section class="bloque" role="alert">
     <h2 class="error">Abonos de la cartola sin archivo Transbank ({{ d.cartola_sin_archivo|length }} · {{ conc.resumen.cartola_sin_archivo.monto|pesos }})</h2>
-    <p>Estos abonos de Transbank llegaron al banco en {{ conc.etiqueta }}, pero no se cargó su archivo "Abonos por día". Sus ventas no se pudieron verificar: descarga los archivos de esas fechas desde Transbank y agrégalos.</p>
+    <p>Estos abonos de Transbank llegaron al banco en los días de abono de esta conciliación, pero no se cargó su archivo "Abonos por día". Sus ventas no se pudieron verificar: descarga los archivos de esas fechas desde Transbank y agrégalos.</p>
     <div class="tabla-envoltura">
       <table>
         <thead><tr><th>Fecha</th><th>Descripción en la cartola</th><th>Medio probable</th><th class="num">Monto</th></tr></thead>
@@ -90,7 +90,7 @@
             <td class="mensaje-celda">{{ v.mensaje }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">No hay ventas con falla este mes.</td></tr>
+          <tr><td colspan="7">No hay ventas con falla en esta conciliación.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -122,11 +122,11 @@
 {% elif vista == "pendientes" %}
   <section class="bloque">
     <h2>Pendientes abiertos al cierre</h2>
-    <p class="ayuda">Pagos con tarjeta del bordero sin abono de Transbank. Se revisan solos en la conciliación del mes siguiente. Cerrados este mes: {{ d.n_pendientes_cerrados }}.</p>
+    <p class="ayuda">Pagos con tarjeta del bordero sin abono de Transbank. Se revisan solos en la próxima conciliación. Cerrados en esta conciliación: {{ d.n_pendientes_cerrados }}.</p>
     <p><a href="{% url 'conciliacion:pendientes' %}">Ver y comentar todos los pendientes abiertos</a></p>
     <div class="tabla-envoltura">
       <table>
-        <thead><tr><th>Fecha</th><th>Cod. Deb.</th><th>Medio</th><th>Documento</th><th class="num">Monto</th><th>Cuenta</th><th>Mes de origen</th><th>Observación</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Cod. Deb.</th><th>Medio</th><th>Documento</th><th class="num">Monto</th><th>Cuenta</th><th>Conciliación de origen</th><th>Observación</th></tr></thead>
         <tbody>
         {% for p in d.pendientes %}
           <tr class="fila-medio-{{ p.medio }}">

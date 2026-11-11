@@ -38,7 +38,7 @@
         <td>{% if a.fecha_abono %}Abono {{ a.fecha_abono|date:"d/m/Y" }} · ventas {{ a.desde|date:"d/m" }} a {{ a.hasta|date:"d/m" }}{% elif a.desde %}{{ a.desde|date:"d/m/Y" }} al {{ a.hasta|date:"d/m/Y" }}{% else %}-{% endif %}</td>
         <td class="num">{{ a.filas|miles }}</td>
         <td class="num">{{ a.total_abono|pesos }}</td>
-        <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% elif a.moneda_extranjera %}<span class="estado-error">En {{ a.moneda|default:"moneda no informada" }}: no se concilia</span>{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
+        <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% elif a.moneda_extranjera %}<span class="estado-error">En {{ a.moneda|default:"moneda no informada" }}: no se concilia</span>{% elif a.ya_conciliado %}{% include "conciliacion/_ya_conciliado.html" %}{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
       </tr>
     {% empty %}
       <tr><td colspan="8">No hay archivos cargados.</td></tr>

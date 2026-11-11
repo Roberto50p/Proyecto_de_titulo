@@ -22,7 +22,7 @@
 
 <div class="tabla-envoltura">
   <table>
-    <thead><tr><th>Fecha</th><th>Medio</th><th>Cod. Deb.</th><th>Documento</th><th class="num">Monto</th><th>Hab / cuenta</th><th>Mes de origen</th><th>Observación</th></tr></thead>
+    <thead><tr><th>Fecha</th><th>Medio</th><th>Cod. Deb.</th><th>Documento</th><th class="num">Monto</th><th>Hab / cuenta</th><th>Conciliación de origen</th><th>Observación</th></tr></thead>
     <tbody>
     {% for p in pendientes %}
       <tr class="fila-medio-{{ p.medio }}" id="p{{ p.pk }}">

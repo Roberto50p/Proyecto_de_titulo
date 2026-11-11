@@ -71,12 +71,15 @@ ul { padding-left: 1.25rem; }
 .marca-nombre { font-size: 1.25rem; font-weight: 700; }
 .marca-sub { font-size: .85rem; color: #9fb0c3; }
 .lateral nav { display: flex; flex-direction: column; gap: .25rem; }
-.lateral nav a {
+.lateral nav a, .lateral nav button {
   color: #d3dbe5; text-decoration: none; padding: .6rem .75rem; border-radius: var(--radio);
   border-left: 3px solid transparent;
 }
-.lateral nav a:hover { background: #222d3a; color: #fff; }
-.lateral nav a.activo { background: #263445; color: #fff; border-left-color: #f5b94a; }
+/* "Nueva conciliación" es un botón (crea con POST) con el mismo aspecto que los enlaces del menú. */
+.lateral nav button { display: block; width: 100%; text-align: left; background: none; border-top: 0; border-right: 0;
+  border-bottom: 0; font: inherit; cursor: pointer; }
+.lateral nav a:hover, .lateral nav button:hover { background: #222d3a; color: #fff; }
+.lateral nav a.activo, .lateral nav button.activo { background: #263445; color: #fff; border-left-color: #f5b94a; }
 .usuario { margin-top: auto; padding: 0 .75rem; font-size: .9rem; color: #9fb0c3; display: flex; flex-direction: column; gap: .25rem; align-items: flex-start; }
 .enlace { background: none; border: 0; padding: 0; color: #d3dbe5; text-decoration: underline; cursor: pointer; font: inherit; }
 

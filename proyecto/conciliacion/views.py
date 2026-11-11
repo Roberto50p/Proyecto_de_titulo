@@ -3,18 +3,19 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import servicio
-from .forms import MesForm, ParametrosForm, RevisionForm
+from .forms import ParametrosForm, RevisionForm
 from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
                      VentaTransbank)
 from .motor import categorias as cat
 from .reportes import excel, pdf
 from .reportes.datos import armar
 
-PASOS = ["Mes de abono", "Archivos", "Revisión de lectura", "Resultado"]
+PASOS = ["Archivos", "Revisión de lectura", "Resultado"]
 VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO, "pendientes"]
 
 
@@ -37,24 +38,29 @@ def lista(request):
 
 
 @login_required
+@require_POST
 def nueva(request):
-    form = MesForm(request.POST or None)
-    existente = None
-    if request.method == "POST" and form.is_valid():
-        anio, mes = form.cleaned_data["anio"], form.cleaned_data["mes"]
-        existente = Conciliacion.objects.filter(anio=anio, mes=mes).first()
-        if existente is None:
-            conc = Conciliacion.objects.create(anio=anio, mes=mes, creada_por=request.user)
-            return redirect("conciliacion:archivos", conc.pk)
-        if existente.estado == Conciliacion.BORRADOR or request.POST.get("confirmar"):
-            return redirect("conciliacion:archivos", existente.pk)
-    return render(request, "conciliacion/nueva_mes.html",
-                  {"form": form, "existente": existente, "pasos": _pasos(1)})
+    """Crea una conciliación sin fecha; si ya hay un borrador vacío que nunca se procesó, se reutiliza para no
+    acumularlos (una conciliación procesada y vaciada conserva su historia y no se reutiliza)."""
+    conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True)
+                 if not c.parametros and not c.observaciones), None)
+    if conc is None:
+        conc = Conciliacion.objects.create(creada_por=request.user)
+    return redirect("conciliacion:archivos", conc.pk)
 
 
 def _aviso_reabierta(request, conc):
     messages.warning(request, f"{conc.etiqueta} volvió a borrador: conciliala de nuevo para ver el resultado con "
                               "los archivos actuales. Tus observaciones se conservan.")
+
+
+def _con_duplicados(conc, choques: dict | None = None) -> list[ArchivoCargado]:
+    """Archivos de la conciliación; cada uno con `ya_conciliado`: los archivos de otras conciliaciones que lo repiten."""
+    choques = servicio.conflictos(conc) if choques is None else choques
+    archivos = list(conc.archivos.all())
+    for a in archivos:
+        a.ya_conciliado = choques.get(a.id, [])
+    return archivos
 
 
 @login_required
@@ -68,6 +74,12 @@ def archivos(request, pk):
             if procesada:
                 _aviso_reabierta(request, conc)
             messages.info(request, f"Se quitó {ac.nombre}.")
+            return redirect("conciliacion:archivos", conc.pk)
+        if "reemplazar" in request.POST:
+            ac = get_object_or_404(ArchivoCargado, pk=request.POST["reemplazar"], conciliacion=conc)
+            for otra in servicio.reemplazar(ac):
+                messages.warning(request, f"Se quitó {ac.nombre} de {otra.etiqueta}, que volvió a borrador: "
+                                          "vuelve a conciliarla. Sus observaciones se conservan.")
             return redirect("conciliacion:archivos", conc.pk)
         if "quitar_todos" in request.POST:
             servicio.quitar_todos(conc)
@@ -101,15 +113,16 @@ def archivos(request, pk):
                                       "correctamente. Revisa cómo se reconoció cada uno en la tabla.")
         return redirect("conciliacion:archivos", conc.pk)
     return render(request, "conciliacion/nueva_archivos.html",
-                  {"conc": conc, "archivos": conc.archivos.all(), "pasos": _pasos(2)})
+                  {"conc": conc, "archivos": _con_duplicados(conc), "pasos": _pasos(1)})
 
 
 @login_required
 def revision(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
+    choques = servicio.conflictos(conc)  # lee los Transbank una sola vez por página
     return render(request, "conciliacion/nueva_revision.html", {
-        "conc": conc, "archivos": conc.archivos.all(), "errores": servicio.validar(conc),
-        "avisos": servicio.advertencias(conc), "pasos": _pasos(3),
+        "conc": conc, "archivos": _con_duplicados(conc, choques), "errores": servicio.validar(conc, choques),
+        "avisos": servicio.advertencias(conc), "pasos": _pasos(2),
     })
 
 
@@ -123,7 +136,7 @@ def procesar(request, pk):
             messages.error(request, e)
         return redirect("conciliacion:revision", conc.pk)
     servicio.procesar(conc)
-    messages.success(request, f"Conciliación de {conc.etiqueta} procesada.")
+    messages.success(request, f"{conc.etiqueta} procesada.")
     return redirect("conciliacion:detalle", conc.pk)
 
 
@@ -164,17 +177,22 @@ def detalle(request, pk):
     return render(request, "conciliacion/resultado.html", {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
         "categorias": categorias, "locales": locales, "filtro_cat": filtro_cat, "filtro_local": filtro_local,
-        "pestanas": pestanas, "pasos": _pasos(4),
+        "pestanas": pestanas, "pasos": _pasos(3),
         "fallas_todas": sorted((v for m in cat.MEDIOS for v in datos["capitulos"][m]["fallas"]),
                                key=lambda v: (cat.GRAVEDAD[v.tipo], cat.MEDIOS.index(v.medio), v.fecha_venta)),
     })
+
+
+def _nombre_reporte(extension: str) -> str:
+    """Los reportes llevan la fecha en que se generan (DD-MM-AAAA; '/' no es válido en nombres de archivo)."""
+    return f"conciliacion_{timezone.localdate():%d-%m-%Y}.{extension}"
 
 
 @login_required
 def descargar_pdf(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk, estado=Conciliacion.PROCESADA)
     respuesta = HttpResponse(pdf.generar(conc), content_type="application/pdf")
-    respuesta["Content-Disposition"] = f'attachment; filename="conciliacion_{conc.anio}_{conc.mes:02d}.pdf"'
+    respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_reporte("pdf")}"'
     return respuesta
 
 
@@ -183,7 +201,7 @@ def descargar_excel(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk, estado=Conciliacion.PROCESADA)
     respuesta = HttpResponse(excel.generar(conc),
                              content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    respuesta["Content-Disposition"] = f'attachment; filename="conciliacion_{conc.anio}_{conc.mes:02d}.xlsx"'
+    respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_reporte("xlsx")}"'
     return respuesta
 
 

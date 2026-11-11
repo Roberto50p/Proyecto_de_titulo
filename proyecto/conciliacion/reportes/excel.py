@@ -159,9 +159,9 @@ def _cuotas(libro, d):
 def _pendientes(libro, d):
     h = Hoja(libro, "Pendientes")
     _encabezado(h, d, f"Pendientes abiertos al cierre — {d['conciliacion'].etiqueta}")
-    h.texto(f"Pagos con tarjeta del bordero sin abono de Transbank. Cerrados este mes: {d['n_pendientes_cerrados']}.")
+    h.texto(f"Pagos con tarjeta del bordero sin abono de Transbank. Cerrados en esta conciliación: {d['n_pendientes_cerrados']}.")
     h.salto()
-    columnas = ["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Hab", "Cuenta", "Mes de origen", "Mensaje",
+    columnas = ["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Hab", "Cuenta", "Conciliación de origen", "Mensaje",
                 "Observación", "Corregir"]
     filas = [[p.pago.fecha, p.pago.cod_deb, cat.ETIQUETA_MEDIO[p.medio], p.pago.documento, abs(p.pago.valor),
               p.pago.hab, p.pago.cuenta, p.origen.etiqueta, p.mensaje, p.observacion, ""] for p in d["pendientes"]]

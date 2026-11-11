@@ -7,7 +7,7 @@ Documento para entender y modificar el proyecto. Explica qué hace cada parte, e
 ## 1. Mapa rápido: qué carpeta importa
 
 | Carpeta / archivo | ¿Se usa? | Qué es |
-|---|---|---|
+|---|---|---|carpera
 | `conciliacion/` | **Sí, es el sistema** | Toda la conciliación en pesos (CLP): lectura de Excel, cruce, reportes, pantallas. |
 | `hotel/` (`settings.py`, `urls.py`) | Sí | Configuración de Django (base de datos, rutas, Vercel). |
 | `hotel/conciliacion/` | **No** | Archivos vacíos de un intento anterior. Se pueden borrar. |

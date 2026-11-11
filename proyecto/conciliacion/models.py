@@ -5,8 +5,6 @@ from .lectores.comunes import clave
 from .motor import categorias as cat
 from .motor.parametros import REGLAS_MEDIO_CARTOLA_INICIALES, escribir_reglas_medio
 
-MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
-         "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MEDIO_CHOICES = [(m, cat.ETIQUETA_MEDIO[m]) for m in cat.MEDIOS]
 CATEGORIA_CHOICES = [(k, v) for k, v in cat.ETIQUETA.items()]
 
@@ -51,8 +49,6 @@ class Conciliacion(models.Model):
     BORRADOR, PROCESADA = "BORRADOR", "PROCESADA"
     ESTADOS = [(BORRADOR, "Borrador"), (PROCESADA, "Procesada")]
 
-    anio = models.PositiveSmallIntegerField("Año")
-    mes = models.PositiveSmallIntegerField()
     estado = models.CharField(max_length=10, choices=ESTADOS, default=BORRADOR)
     parametros = models.JSONField(default=dict, blank=True)
     resumen = models.JSONField(default=dict, blank=True)
@@ -64,14 +60,13 @@ class Conciliacion(models.Model):
     observaciones = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        unique_together = [("anio", "mes")]
-        ordering = ["-anio", "-mes"]
+        ordering = ["-id"]
         verbose_name = "conciliación"
         verbose_name_plural = "conciliaciones"
 
     @property
     def etiqueta(self) -> str:
-        return f"{MESES[self.mes - 1]} {self.anio}"
+        return f"Conciliación N° {self.pk}"
 
     def __str__(self):
         return self.etiqueta

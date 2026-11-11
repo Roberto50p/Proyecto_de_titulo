@@ -5,14 +5,14 @@
 <header class="cabecera">
   <div>
     <h1>Conciliaciones</h1>
-    <p class="ayuda">Un registro por mes de abono. Abre un mes para ver sus fallas o descargar el PDF y el Excel.</p>
+    <p class="ayuda">Puedes conciliar cada día o cuando lo necesites. Abre una conciliación para ver sus fallas o descargar el PDF y el Excel.</p>
   </div>
-  <a class="boton boton-principal" href="{% url 'conciliacion:nueva' %}">Nueva conciliación</a>
+  <form method="post" action="{% url 'conciliacion:nueva' %}">{% csrf_token %}<button type="submit" class="boton boton-principal">Nueva conciliación</button></form>
 </header>
 {% if conciliaciones %}
 <div class="tabla-envoltura">
   <table>
-    <thead><tr><th>Mes de abono</th><th>Estado</th><th class="num">Abonado</th><th class="num">En cartola</th><th class="num">Diferencial</th><th class="num">Ventas</th><th class="num">Con falla</th><th class="num">Pendientes</th><th>Procesada</th><th>Acciones</th></tr></thead>
+    <thead><tr><th>Conciliación</th><th>Estado</th><th class="num">Abonado</th><th class="num">En cartola</th><th class="num">Diferencial</th><th class="num">Ventas</th><th class="num">Con falla</th><th class="num">Pendientes</th><th>Procesada</th><th>Acciones</th></tr></thead>
     <tbody>
     {% for c in conciliaciones %}
       <tr>
@@ -38,7 +38,7 @@
 {% else %}
   <section class="vacio">
     <p>Aún no hay conciliaciones.</p>
-    <p class="ayuda">Empieza eligiendo el mes de abono y subiendo el bordero, la cartola y los archivos de Transbank.</p>
+    <p class="ayuda">Empieza con "Nueva conciliación" y sube el bordero, la cartola y los archivos de Transbank.</p>
   </section>
 {% endif %}
 {% endblock %}

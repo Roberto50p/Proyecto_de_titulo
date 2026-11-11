@@ -19,11 +19,9 @@ def _orden(v):
 
 
 def pendientes_abiertos_al_cierre(conc: Conciliacion):
-    """Pendientes que estaban abiertos al cierre del mes: originados en este mes o antes y que, si ya se
-    cerraron, fue en un mes posterior. Así el reporte de un mes no cambia al procesar los siguientes."""
-    anteriores = Q(origen__anio__lt=conc.anio) | Q(origen__anio=conc.anio, origen__mes__lte=conc.mes)
-    cerrado_despues = Q(cierre__anio__gt=conc.anio) | Q(cierre__anio=conc.anio, cierre__mes__gt=conc.mes)
-    return (Pendiente.objects.filter(anteriores).filter(Q(abierto=True) | cerrado_despues)
+    """Pendientes que estaban abiertos al cierre de la conciliación: originados en ella o en una anterior y que,
+    si ya se cerraron, fue en una posterior. Así el reporte no cambia al procesar las siguientes."""
+    return (Pendiente.objects.filter(origen_id__lte=conc.id).filter(Q(abierto=True) | Q(cierre_id__gt=conc.id))
             .select_related("pago", "origen").order_by("pago__fecha", "pago__hora"))
 
 
@@ -64,7 +62,7 @@ def armar(conc: Conciliacion) -> dict:
         "conciliacion": conc,
         "encabezado": {
             "empresa": EMPRESA, "departamento": DEPARTAMENTO, "rut": RUT,
-            "titulo": f"Conciliación Transbank — {conc.etiqueta}",
+            "titulo": f"Conciliación Transbank N° {conc.pk}",
             "subtitulo": "Cierre por fecha de abono",
             "cuenta": f"{cartola.banco} {cartola.cuenta}".strip() if cartola else "Sin cartola",
             "generado": timezone.localtime(),

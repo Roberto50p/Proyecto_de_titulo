@@ -143,13 +143,13 @@ def _seccion_resumen(d, h):
           Paragraph("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "
                     "Ventas Transbank." if d["cuadra"] else
                     "<b>La suma de las categorías no coincide con Ventas Transbank en algún medio.</b>", E["normal"]),
-          Paragraph(f"Pendientes abiertos al cierre: {len(d['pendientes'])} · cerrados este mes: "
+          Paragraph(f"Pendientes abiertos al cierre: {len(d['pendientes'])} · cerrados en esta conciliación: "
                     f"{d['n_pendientes_cerrados']}.", E["normal"])]
     if d["cartola_sin_archivo"]:
         total = sum(m.abono for m in d["cartola_sin_archivo"])
         h += [Paragraph(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])} · "
                         f"{pesos(total)})", E["h3"]),
-              Paragraph("Llegaron al banco en el mes pero no se cargó su archivo 'Abonos por día'; sus ventas no "
+              Paragraph("Llegaron al banco en los días conciliados pero no se cargó su archivo 'Abonos por día'; sus ventas no "
                         "se pudieron verificar. Cargar los archivos de esas fechas.", E["suave"]),
               _tabla([["Fecha", "Descripción en la cartola", "Medio probable", "Monto"]] +
                      [[f"{m.fecha:%d/%m/%Y}", Paragraph(escape(m.descripcion), E["chico"]), m.medio_probable,
@@ -222,7 +222,7 @@ def _seccion_capitulo(d, h, numero, medio):
             h.append(_tabla(filas, [24 * mm, 22 * mm, 50 * mm, 16 * mm, 30 * mm, 34 * mm, 50 * mm],
                             numericas=(4, 5)))
         else:
-            h.append(Paragraph("No hay ventas en cuotas en este mes.", E["suave"]))
+            h.append(Paragraph("No hay ventas en cuotas en esta conciliación.", E["suave"]))
     if cap["otros"]:
         h.append(Paragraph("Otros movimientos (no son ventas)", E["h3"]))
         h.append(_tabla([["Fecha", "Tipo de movimiento", "Código", "Monto"]] +
@@ -235,9 +235,9 @@ def _seccion_capitulo(d, h, numero, medio):
 def _seccion_pendientes(d, h):
     h += [PageBreak(), Paragraph("6. Pendientes", E["h2"])]
     h.append(Paragraph(f"Pagos con tarjeta del bordero sin abono de Transbank al cierre ({len(d['pendientes'])}). "
-                       "Se revisan automáticamente en la conciliación del mes siguiente.", E["suave"]))
+                       "Se revisan automáticamente en la próxima conciliación.", E["suave"]))
     if d["pendientes"]:
-        filas = [["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Cuenta", "Mes de origen", "Observación"]]
+        filas = [["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Cuenta", "Conciliación de origen", "Observación"]]
         for p in d["pendientes"]:
             filas.append([f"{p.pago.fecha:%d/%m/%Y}", p.pago.cod_deb, cat.ETIQUETA_MEDIO[p.medio],
                           p.pago.documento, pesos(abs(p.pago.valor)), p.pago.cuenta, p.origen.etiqueta,
