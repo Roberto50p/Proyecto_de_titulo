@@ -1,3 +1,4 @@
+/* --------------- ARCHIVO NO USADO ------------------- */
 // Usage: https://github.com/Grsmto/simplebar
 import SimpleBar from "simplebar";
 

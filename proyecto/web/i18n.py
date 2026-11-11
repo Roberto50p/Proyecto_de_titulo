@@ -1,3 +1,4 @@
+# --------------- ARCHIVO NO USADO -------------------
 def cambio_idioma(num):
     diccionario()
     

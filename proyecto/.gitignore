@@ -6,3 +6,7 @@ db.sqlite3
 .vscode
 media/
 .pytest_cache/
+
+# skill
+graphify-out/*
+!graphify-out/graph.json

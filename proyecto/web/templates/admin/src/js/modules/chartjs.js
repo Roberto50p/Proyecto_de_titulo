@@ -1,3 +1,4 @@
+/* --------------- ARCHIVO NO USADO ------------------- */
 // Usage: https://www.chartjs.org/
 import Chart from "chart.js";
 
