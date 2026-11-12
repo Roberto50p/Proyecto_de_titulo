@@ -88,7 +88,7 @@ def test_nueva_no_reutiliza_una_conciliacion_ya_procesada_y_vaciada(cliente, sep
 def test_lista_no_pide_mes(cliente):
     html = cliente.get(reverse("conciliacion:lista")).content.decode()
     assert "Mes de abono" not in html
-    assert f'<form method="post" action="{reverse("conciliacion:nueva")}"' in html
+    assert f'href="{reverse("conciliacion:inicio")}"' in html
 
 
 def test_archivo_no_reconocido_bloquea(cliente, tmp_path):

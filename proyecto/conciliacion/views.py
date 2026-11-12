@@ -15,18 +15,20 @@ from .motor import categorias as cat
 from .reportes import excel, pdf
 from .reportes.datos import armar
 
-PASOS = ["Archivos", "Revisión de lectura", "Resultado"]
 VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO, "pendientes"]
-
-
-def _pasos(actual: int) -> list[dict]:
-    return [{"numero": i, "nombre": n, "estado": "actual" if i == actual else "hecho" if i < actual else ""}
-            for i, n in enumerate(PASOS, 1)]
 
 
 @login_required
 def inicio(request):
-    return redirect("conciliacion:lista")
+    """Página de inicio: "Cargar" crea (o reutiliza) un borrador con los archivos y lleva a su tabla."""
+    if request.method == "POST":
+        if not request.FILES.getlist("archivos"):
+            messages.error(request, "Selecciona al menos un archivo.")
+            return redirect("conciliacion:inicio")
+        conc = _borrador(request)
+        _guardar_subidos(request, conc)
+        return redirect("conciliacion:archivos", conc.pk)
+    return render(request, "conciliacion/inicio.html")
 
 
 @login_required
@@ -93,7 +95,7 @@ def _con_duplicados(conc, choques: dict | None = None) -> list[ArchivoCargado]:
 
 
 def _acciones_archivos(request, conc) -> None:
-    """POST de la página de archivos (las dos interfaces): quitar, reemplazar, quitar todos o subir."""
+    """POST de la página de archivos: quitar, reemplazar, quitar todos o subir."""
     procesada = conc.estado == Conciliacion.PROCESADA
     if "eliminar" in request.POST:
         ac = get_object_or_404(ArchivoCargado, pk=request.POST["eliminar"], conciliacion=conc)
@@ -121,52 +123,7 @@ def archivos(request, pk):
     if request.method == "POST":
         _acciones_archivos(request, conc)
         return redirect("conciliacion:archivos", conc.pk)
-    return render(request, "conciliacion/nueva_archivos.html",
-                  {"conc": conc, "archivos": _con_duplicados(conc), "pasos": _pasos(1)})
-
-
-# ---------------------------------------------------- interfaz nueva (en construcción)
-
-
-@login_required
-def nuevo_inicio(request):
-    """Home de la interfaz nueva: "Cargar" crea (o reutiliza) un borrador con los archivos y muestra su tabla."""
-    if request.method == "POST":
-        if not request.FILES.getlist("archivos"):
-            messages.error(request, "Selecciona al menos un archivo.")
-            return redirect("conciliacion:nuevo_inicio")
-        conc = _borrador(request)
-        _guardar_subidos(request, conc)
-        return redirect("conciliacion:nuevo_archivos", conc.pk)
-    return render(request, "interfaz_nueva/nuevo_inicio.html")
-
-
-@login_required
-def nuevo_lista(request):
-    """Historial con la interfaz nueva: misma lógica que `lista`."""
-    return render(request, "interfaz_nueva/nuevo_lista.html",
-                  {"conciliaciones": Conciliacion.objects.prefetch_related("archivos")})
-
-
-@login_required
-def nuevo_archivos(request, pk):
-    """Home con los archivos ya cargados de una conciliación: misma lógica que `archivos`."""
-    conc = get_object_or_404(Conciliacion, pk=pk)
-    if request.method == "POST":
-        _acciones_archivos(request, conc)
-        return redirect("conciliacion:nuevo_archivos", conc.pk)
-    return render(request, "interfaz_nueva/nuevo_inicio.html", {"conc": conc, "archivos": _con_duplicados(conc)})
-
-
-@login_required
-def nuevo_revision(request, pk):
-    """Revisión de lectura con la interfaz nueva: misma lógica que `revision`."""
-    conc = get_object_or_404(Conciliacion, pk=pk)
-    choques = servicio.conflictos(conc)
-    return render(request, "interfaz_nueva/nuevo_revision.html", {
-        "conc": conc, "archivos": _con_duplicados(conc, choques), "errores": servicio.validar(conc, choques),
-        "avisos": servicio.advertencias(conc),
-    })
+    return render(request, "conciliacion/inicio.html", {"conc": conc, "archivos": _con_duplicados(conc)})
 
 
 @login_required
@@ -175,7 +132,7 @@ def revision(request, pk):
     choques = servicio.conflictos(conc)  # lee los Transbank una sola vez por página
     return render(request, "conciliacion/nueva_revision.html", {
         "conc": conc, "archivos": _con_duplicados(conc, choques), "errores": servicio.validar(conc, choques),
-        "avisos": servicio.advertencias(conc), "pasos": _pasos(2),
+        "avisos": servicio.advertencias(conc),
     })
 
 
@@ -183,15 +140,14 @@ def revision(request, pk):
 @require_POST
 def procesar(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
-    nueva = request.POST.get("interfaz") == "nueva"  # el botón de la interfaz nueva vuelve a sus páginas
     errores = servicio.validar(conc)
     if errores:
         for e in errores:
             messages.error(request, e)
-        return redirect("conciliacion:nuevo_revision" if nueva else "conciliacion:revision", conc.pk)
+        return redirect("conciliacion:revision", conc.pk)
     servicio.procesar(conc)
     messages.success(request, f"{conc.etiqueta} procesada.")
-    return redirect("conciliacion:nuevo_detalle" if nueva else "conciliacion:detalle", conc.pk)
+    return redirect("conciliacion:detalle", conc.pk)
 
 
 # ------------------------------------------------------------------ resultado
@@ -203,15 +159,6 @@ def detalle(request, pk):
     if conc.estado != Conciliacion.PROCESADA:
         return redirect("conciliacion:revision", conc.pk)
     return render(request, "conciliacion/resultado.html", _contexto_resultado(request, conc))
-
-
-@login_required
-def nuevo_detalle(request, pk):
-    """Resultado con la interfaz nueva: misma lógica que `detalle`."""
-    conc = get_object_or_404(Conciliacion, pk=pk)
-    if conc.estado != Conciliacion.PROCESADA:
-        return redirect("conciliacion:nuevo_revision", conc.pk)
-    return render(request, "interfaz_nueva/nuevo_resultado.html", _contexto_resultado(request, conc))
 
 
 def _contexto_resultado(request, conc) -> dict:
@@ -244,7 +191,7 @@ def _contexto_resultado(request, conc) -> dict:
     return {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
         "categorias": categorias, "locales": locales, "filtro_cat": filtro_cat, "filtro_local": filtro_local,
-        "pestanas": pestanas, "pasos": _pasos(3),
+        "pestanas": pestanas,
         "fallas_todas": sorted((v for m in cat.MEDIOS for v in datos["capitulos"][m]["fallas"]),
                                key=lambda v: (cat.GRAVEDAD[v.tipo], cat.MEDIOS.index(v.medio), v.fecha_venta)),
     }

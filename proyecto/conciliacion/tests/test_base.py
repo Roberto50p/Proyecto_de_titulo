@@ -35,18 +35,18 @@ def test_etiqueta_por_periodo_de_abono(db):
     assert c.etiqueta == "Conciliación del 03/11/2026 al 05/11/2026"
 
 
-def test_interfaz_nueva_flujo(client, db):
+def test_inicio_y_archivos(client, db):
     from django.contrib.auth.models import User
     from django.urls import reverse
 
     from conciliacion.models import Conciliacion
 
     client.force_login(User.objects.create_user("u"))
-    assert "Cargar" in client.get(reverse("conciliacion:nuevo_inicio")).content.decode()
+    assert "Cargar" in client.get(reverse("conciliacion:inicio")).content.decode()
     c = Conciliacion.objects.create()
-    html = client.get(reverse("conciliacion:nuevo_archivos", args=[c.pk])).content.decode()
+    html = client.get(reverse("conciliacion:archivos", args=[c.pk])).content.decode()
     assert "file-check.svg" in html and "Continuar revisión" in html
-    html = client.get(reverse("conciliacion:nuevo_revision", args=[c.pk])).content.decode()
+    html = client.get(reverse("conciliacion:revision", args=[c.pk])).content.decode()
     assert "Revisión de lectura" in html and "banner.webp" in html
 
 
@@ -65,7 +65,7 @@ def test_etiqueta_repetida_agrega_fecha_de_creacion(db):
     assert a.etiqueta == "Conciliación del 08/09/2026"
 
 
-def test_interfaz_nueva_historial(client, db):
+def test_historial(client, db):
     from django.contrib.auth.models import User
     from django.urls import reverse
 
@@ -73,12 +73,12 @@ def test_interfaz_nueva_historial(client, db):
 
     client.force_login(User.objects.create_user("u"))
     c = Conciliacion.objects.create()
-    html = client.get(reverse("conciliacion:nuevo_lista")).content.decode()
+    html = client.get(reverse("conciliacion:lista")).content.decode()
     assert "Historial de conciliaciones" in html and c.etiqueta in html
-    assert reverse("conciliacion:nuevo_archivos", args=[c.pk]) in html
+    assert reverse("conciliacion:archivos", args=[c.pk]) in html
 
 
-def test_interfaz_nueva_resultado(client, db):
+def test_resultado_sin_procesar_lleva_a_revision(client, db):
     from django.contrib.auth.models import User
     from django.urls import reverse
 
@@ -86,11 +86,23 @@ def test_interfaz_nueva_resultado(client, db):
 
     client.force_login(User.objects.create_user("u"))
     c = Conciliacion.objects.create()
-    # Sin procesar, el resultado nuevo lleva a la revisión nueva (no a la antigua).
-    r = client.get(reverse("conciliacion:nuevo_detalle", args=[c.pk]))
-    assert r.url == reverse("conciliacion:nuevo_revision", args=[c.pk])
-    # Conciliar desde la interfaz nueva con errores vuelve a la revisión nueva.
-    r = client.post(reverse("conciliacion:procesar", args=[c.pk]), {"interfaz": "nueva"})
-    assert r.url == reverse("conciliacion:nuevo_revision", args=[c.pk])
+    r = client.get(reverse("conciliacion:detalle", args=[c.pk]))
+    assert r.url == reverse("conciliacion:revision", args=[c.pk])
     r = client.post(reverse("conciliacion:procesar", args=[c.pk]))
     assert r.url == reverse("conciliacion:revision", args=[c.pk])
+
+
+def test_todas_las_paginas_usan_la_barra_y_el_banner(client, db):
+    from django.contrib.auth.models import User
+    from django.urls import reverse
+
+    from conciliacion.models import Conciliacion
+
+    client.force_login(User.objects.create_user("u"))
+    c = Conciliacion.objects.create()
+    urls = [reverse("conciliacion:inicio"), reverse("conciliacion:lista"), reverse("conciliacion:pendientes"),
+            reverse("conciliacion:parametros"), reverse("conciliacion:archivos", args=[c.pk]),
+            reverse("conciliacion:revision", args=[c.pk])]
+    for url in urls:
+        html = client.get(url).content.decode()
+        assert "n-lateral" in html and "banner.webp" in html, url

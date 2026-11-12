@@ -1,302 +1,241 @@
-/* Conciliación HPSF — hoja de estilos.
-   Idea: la interfaz es sobria como un libro contable; el único color fuerte
-   es el de cada medio de pago, que se repite igual en pantalla, PDF y Excel.
-   Ritmo vertical: los espacios salen de --espacio (1rem) y sus mitades/dobles. */
+/* Hoja de estilos de la plataforma (interfaz nueva, ahora la única). */
 
 :root {
-  --tinta: #1b2430;
-  --tinta-suave: #4a5565;
-  --linea: #d6dce3;
-  --linea-suave: #e9edf1;
-  --papel: #ffffff;
-  --fondo: #f1f3f6;
-  --lateral: #18212c;
-  --borde-campo: #b9c2cd;
-
-  --debito: #1f5fa8;
-  --debito-fondo: #e8f0fa;
-  --credito: #b7791f;
-  --credito-texto: #7f5212;
-  --credito-fondo: #fbf2e3;
-  --prepago: #2f7d4f;
-  --prepago-fondo: #e7f4ec;
-
-  --operacion: #b42318;
-  --operacion-fondo: #fdecea;
-  --dato: #6b3fa0;
-  --dato-fondo: #f2ecfa;
-  --pendiente: #475467;
-  --pendiente-fondo: #eef1f5;
-  --aviso: #5b6675;
-  --aviso-fondo: #f4f5f7;
-  --ok: #2f7d4f;
-  --ok-fondo: #edf8f1;
-
-  --radio: 6px;
-  --espacio: 1rem;
-  --alto-control: 44px;
-  --alto-control-tabla: 34px;
-  --ancho-lateral: 240px;
-  --fuente: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --n-lateral: #ede8e8;
+  --n-tinta: #1b2430;
+  --n-tinta-suave: #5a6270;
+  --n-linea: #d9d2d2;
+  --n-fondo: #f7f5f5;
+  --n-papel: #ffffff;
+  --n-acento: #1b2430;
+  --n-radio: 8px;
+  --n-ancho-lateral: 260px;
+  --n-fuente: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
 }
 
-/* ------------------------------------------------------------ base */
 * { box-sizing: border-box; }
-html { font-size: 16px; }
-body { margin: 0; font-family: var(--fuente); color: var(--tinta); background: var(--fondo); line-height: 1.5; }
-a { color: var(--debito); }
-h1, h2, h3 { margin: 0; font-weight: 650; line-height: 1.3; }
-h1 { font-size: 1.6rem; line-height: 1.25; letter-spacing: -0.01em; }
-h2 { font-size: 1.15rem; }
-h3 { font-size: 1rem; }
-p, ul { margin: 0; }
-ul { padding-left: 1.25rem; }
-.ayuda { color: var(--tinta-suave); }
-.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
-.error { color: var(--operacion); font-weight: 600; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
-:focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+body { margin: 0; font-family: var(--n-fuente); color: var(--n-tinta); background: var(--n-fondo); }
 
-/* ------------------------------------------------------------ estructura */
-.app {
-  display: grid; grid-template-columns: var(--ancho-lateral) minmax(0, 1fr); min-height: 100vh;
-  background: linear-gradient(to right, var(--lateral) var(--ancho-lateral), var(--fondo) var(--ancho-lateral));
+.n-app { display: grid; grid-template-columns: var(--n-ancho-lateral) 1fr; min-height: 100vh; }
+
+/* ---------- barra lateral ---------- */
+.n-lateral {
+  background: var(--n-lateral); border-right: 1px solid var(--n-linea);
+  display: flex; flex-direction: column; gap: 1.5rem; padding: 1.25rem 1rem;
+  position: sticky; top: 0; height: 100vh;
 }
-.lateral {
-  background: var(--lateral); color: #e6ebf1; padding: 1.5rem 1rem;
-  display: flex; flex-direction: column; gap: 2rem; position: sticky; top: 0; height: 100vh;
+.n-marca { display: flex; align-items: center; gap: .75rem; text-decoration: none; color: inherit; }
+/* Espacio del logo: con o sin imagen ocupa lo mismo. */
+.n-logo {
+  flex: none; width: 48px; height: 48px; border-radius: var(--n-radio);
+  border: 1px dashed var(--n-linea); display: grid; place-items: center; overflow: hidden;
 }
-.lateral :focus-visible { outline-color: #f5b94a; }
-.marca { color: #fff; text-decoration: none; display: flex; flex-direction: column; padding: 0 .75rem; }
-.marca-nombre { font-size: 1.25rem; font-weight: 700; }
-.marca-sub { font-size: .85rem; color: #9fb0c3; }
-.lateral nav { display: flex; flex-direction: column; gap: .25rem; }
-.lateral nav a, .lateral nav button {
-  color: #d3dbe5; text-decoration: none; padding: .6rem .75rem; border-radius: var(--radio);
-  border-left: 3px solid transparent;
+.n-logo img { width: 100%; height: 100%; object-fit: contain; }
+.n-logo:has(img) { border: none; }
+.n-marca-texto { display: flex; flex-direction: column; line-height: 1.25; }
+.n-titulo { font-weight: 700; font-size: 1rem; }
+.n-subtitulo { font-size: .78rem; color: var(--n-tinta-suave); }
+
+.n-menu { display: flex; flex-direction: column; gap: .25rem; }
+.n-menu a, .n-menu button {
+  display: block; width: 100%; text-align: left; padding: .6rem .75rem; border-radius: var(--n-radio);
+  font: inherit; font-size: .95rem; color: var(--n-tinta); text-decoration: none;
+  background: none; border: none; cursor: pointer;
 }
-/* "Nueva conciliación" es un botón (crea con POST) con el mismo aspecto que los enlaces del menú. */
-.lateral nav button { display: block; width: 100%; text-align: left; background: none; border-top: 0; border-right: 0;
-  border-bottom: 0; font: inherit; cursor: pointer; }
-.lateral nav a:hover, .lateral nav button:hover { background: #222d3a; color: #fff; }
-.lateral nav a.activo, .lateral nav button.activo { background: #263445; color: #fff; border-left-color: #f5b94a; }
-.usuario { margin-top: auto; padding: 0 .75rem; font-size: .9rem; color: #9fb0c3; display: flex; flex-direction: column; gap: .25rem; align-items: flex-start; }
-.enlace { background: none; border: 0; padding: 0; color: #d3dbe5; text-decoration: underline; cursor: pointer; font: inherit; }
+.n-menu a:hover, .n-menu button:hover { background: rgba(0, 0, 0, .06); }
+.n-menu .activo { background: var(--n-papel); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 
-.contenido { padding: 2rem 2.5rem 4rem; max-width: 1280px; width: 100%; min-width: 0; }
+.n-usuario { margin-top: auto; font-size: .85rem; color: var(--n-tinta-suave); display: flex; flex-direction: column; gap: .25rem; }
+.n-usuario button { background: none; border: none; padding: 0; font: inherit; color: var(--n-tinta); text-decoration: underline; cursor: pointer; }
 
-/* Cabecera de página: título y descripción a la izquierda, acciones a la derecha y centradas con el bloque. */
-.cabecera { display: flex; justify-content: space-between; align-items: center; gap: var(--espacio) 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-.cabecera > div:first-child { flex: 1 1 32rem; min-width: 0; }
-.cabecera .ayuda { margin-top: .35rem; }
+/* ---------- contenido ---------- */
+.n-contenido { padding: 1.5rem 2rem; display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
 
-/* Caja de contenido. Sus hijos directos se separan con un ritmo fijo, sin márgenes sueltos. */
-.bloque { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
-.bloque > * + * { margin-top: var(--espacio); }
-.bloque > :is(h2, h3) + * { margin-top: .5rem; }
-.bloque > input[type=hidden] + * { margin-top: 0; }
-.bloque > :is(h2, h3) + :is(.tabla-envoltura, .fila-campos, .filtros) { margin-top: var(--espacio); }
-.vacio { background: var(--papel); border: 1px dashed var(--linea); border-radius: var(--radio); padding: 2rem; text-align: center; }
-.vacio > * + * { margin-top: .5rem; }
+/* Banner a todo el ancho, proporción 3:1 para que el dibujo no se agrande de más (con un alto fijo, en pantallas
+   anchas se recortaba casi todo). object-position 30% deja a la vista el letrero y la entrada y recorta el pasto.
+   Sin imagen muestra el espacio reservado. */
+.n-banner {
+  aspect-ratio: 3 / 1; max-height: 340px; border-radius: var(--n-radio); overflow: hidden;
+  background: var(--n-papel); border: 1px dashed var(--n-linea);
+}
+.n-banner img { width: 100%; height: 100%; object-fit: cover; object-position: center 27%; display: block; }
+.n-banner:has(img) { border: 1px solid var(--n-linea); box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
 
-/* Mensajes */
-.mensajes { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.5rem; }
-.mensaje { padding: .75rem 1rem; border-radius: var(--radio); border: 1px solid var(--linea); background: var(--papel); }
-.mensaje-success { border-color: #b7dfc6; background: var(--ok-fondo); }
-.mensaje-error { border-color: #f3c0bb; background: var(--operacion-fondo); }
-.mensaje-warning { border-color: #f0d9a8; background: #fdf6e7; }
+.n-bloque { background: var(--n-papel); border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: 1.5rem; }
+.n-bloque h1 { margin: 0 0 .5rem; font-size: 1.5rem; }
+.n-ayuda { margin: 0 0 1rem; color: var(--n-tinta-suave); font-size: .9rem; }
 
-/* ------------------------------------------------------------ botones */
+.n-zona-carga {
+  display: flex; flex-direction: column; gap: .75rem; padding: 1.5rem;
+  border: 2px dashed var(--n-linea); border-radius: var(--n-radio); background: var(--n-fondo);
+}
+.n-acciones { display: flex; justify-content: flex-end; margin-top: 1rem; }
+
+.n-mensajes { display: flex; flex-direction: column; gap: .5rem; }
+.n-mensaje { margin: 0; padding: .6rem .9rem; border-radius: var(--n-radio); background: var(--n-papel); border: 1px solid var(--n-linea); }
+.n-mensaje-error { border-color: #e4a39c; background: #fdecea; }
+.n-mensaje-warning { border-color: #e8cf9a; background: #fbf2e3; }
+.n-mensaje-success { border-color: #a6d4b7; background: #edf8f1; }
+
+/* Botones y selector de archivos (los genera archivos.js). */
 .boton {
-  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
-  min-height: var(--alto-control); padding: .5rem 1.1rem; border-radius: var(--radio);
-  border: 1px solid var(--linea); background: var(--papel); color: var(--tinta);
-  font: inherit; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; white-space: nowrap;
-  transition: background-color .15s ease, border-color .15s ease;
+  min-height: 40px; padding: .5rem 1rem; border-radius: var(--n-radio); border: 1px solid var(--n-linea);
+  background: var(--n-papel); color: var(--n-tinta); font: inherit; cursor: pointer;
 }
-.boton:hover { border-color: var(--tinta-suave); }
-.boton-principal { background: var(--tinta); border-color: var(--tinta); color: #fff; }
-.boton-principal:hover { background: #2c3a4c; }
-.boton-peligro { color: var(--operacion); border-color: #f3c0bb; }
-.boton-peligro:hover { border-color: var(--operacion); }
-.boton[disabled], .boton[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
-.acciones { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+.boton-principal { background: var(--n-acento); border-color: var(--n-acento); color: #fff; font-weight: 600; }
+.selector-archivo { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.selector-archivo-estado { color: var(--n-tinta-suave); font-size: .9rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* ------------------------------------------------------------ formularios */
-input[type=text], input[type=password], input[type=number], select, textarea {
-  font: inherit; color: var(--tinta); background: var(--papel); width: 100%;
-  border: 1px solid var(--borde-campo); border-radius: var(--radio); padding: .5rem .7rem; min-height: var(--alto-control);
-}
-textarea { resize: vertical; line-height: 1.4; }
-input[type=checkbox] { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--tinta); }
-input[type=file] { font: inherit; max-width: 100%; }
-input[type=file]::file-selector-button {
-  font: inherit; font-weight: 600; margin-right: .75rem; padding: .45rem 1rem; min-height: 40px; cursor: pointer;
-  border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); color: var(--tinta);
-}
-input[type=file]::file-selector-button:hover { border-color: var(--tinta-suave); }
-/* Selector de archivo en español (archivos.js reemplaza al control nativo). */
-.selector-archivo { display: flex; align-items: center; gap: .75rem; min-width: 0; }
-.selector-archivo .boton { min-height: 40px; padding: .45rem 1rem; flex: none; }
-.selector-archivo-estado { min-width: 0; color: var(--tinta-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ---------- títulos con icono y período ---------- */
+.n-bloque h2 { margin: 0 0 1rem; font-size: 1.15rem; }
+.n-bloque ul { margin: 0; padding-left: 1.25rem; }
+.n-titulo-icono { display: flex; align-items: center; gap: .6rem; }
+.n-icono { width: 28px; height: 28px; flex: none; }
+.n-periodo { margin: 0 0 .5rem; font-weight: 600; color: var(--n-tinta-suave); }
+.n-bloque-error { border-color: #e4a39c; background: #fdecea; }
+.n-bloque-error h2 { color: #b42318; }
+.n-acciones { gap: .75rem; align-items: center; flex-wrap: wrap; }
+.boton { text-decoration: none; display: inline-flex; align-items: center; }
+.boton[disabled] { opacity: .5; cursor: not-allowed; }
+.boton-peligro { color: #b42318; border-color: #f3c0bb; }
 
-/* Un campo: etiqueta, control y pie (ayuda y errores). */
-.campo { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
-.campo > label { font-weight: 600; font-size: .95rem; line-height: 1.35; }
+details { margin-top: 1rem; }
+details > summary { cursor: pointer; color: var(--n-tinta-suave); }
+details[open] > summary { margin-bottom: .75rem; }
+
+/* ---------- tablas (mismas clases que la interfaz antigua) ---------- */
+.tabla-envoltura { overflow-x: auto; border: 1px solid var(--n-linea); border-radius: var(--n-radio); }
+table { border-collapse: collapse; width: 100%; font-size: .93rem; }
+th, td { padding: .55rem .7rem; border-bottom: 1px solid #efeaea; text-align: left; vertical-align: middle; }
+th { background: var(--n-fondo); font-weight: 650; color: var(--n-tinta-suave); font-size: .85rem; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: #fbfafa; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.celda-acciones { display: flex; gap: .5rem; justify-content: flex-end; }
+td .boton { min-height: 32px; padding: .25rem .8rem; font-size: .9rem; }
+.estado-ok { color: #2f7d4f; font-weight: 650; }
+.estado-error { color: #b42318; font-weight: 650; }
+
+/* Medios de pago: color + nombre, igual que en los reportes. */
+.medio { font-weight: 650; white-space: nowrap; }
+.medio::before { content: ""; display: inline-block; width: 4px; height: 1em; margin-right: .45rem; border-radius: 2px; background: currentColor; vertical-align: -.15em; }
+.medio-DEBITO { color: #1f5fa8; }
+.medio-CREDITO { color: #7f5212; }
+.medio-PREPAGO { color: #2f7d4f; }
+.fila-medio-DEBITO > td:first-child { box-shadow: inset 4px 0 0 #1f5fa8; }
+.fila-medio-CREDITO > td:first-child { box-shadow: inset 4px 0 0 #b7791f; }
+.fila-medio-PREPAGO > td:first-child { box-shadow: inset 4px 0 0 #2f7d4f; }
+
+/* ---------- historial ---------- */
+.n-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.n-cabecera > div { flex: 1 1 28rem; min-width: 0; }
+.n-vacio { border: 1px dashed var(--n-linea); border-radius: var(--n-radio); padding: 2rem; text-align: center; }
+.n-vacio p { margin: 0 0 .5rem; }
+td a { color: #1f5fa8; }
+
+/* ---------- resultado ---------- */
+.n-acciones-cabecera { margin-top: 0; }
+.n-nota { margin: 1rem 0 0; }
+.n-bloque > p { margin: .5rem 0; }
+
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 0; }
+.indicador { background: var(--n-papel); border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: 1rem 1.25rem; }
+.indicador dt { font-size: .85rem; color: var(--n-tinta-suave); }
+.indicador dd { margin: .2rem 0 0; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.indicador dd small { font-size: .9rem; font-weight: 600; }
+.indicador.alerta dd { color: #b42318; }
+.indicador.bien dd { color: #2f7d4f; }
+
+.pestanas { display: flex; gap: .25rem; border-bottom: 1px solid var(--n-linea); flex-wrap: wrap; }
+.pestanas a { display: inline-flex; align-items: center; padding: .7rem 1rem; text-decoration: none; color: var(--n-tinta-suave); border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 600; }
+.pestanas a:hover { color: var(--n-tinta); }
+.pestanas a.activa { color: var(--n-tinta); border-bottom-color: var(--n-tinta); }
+.pestanas a.pestana-DEBITO.activa { border-bottom-color: #1f5fa8; color: #1f5fa8; }
+.pestanas a.pestana-CREDITO.activa { border-bottom-color: #b7791f; color: #7f5212; }
+.pestanas a.pestana-PREPAGO.activa { border-bottom-color: #2f7d4f; color: #2f7d4f; }
+.contador { display: inline-block; min-width: 1.6em; padding: 0 .4em; margin-left: .4rem; border-radius: 999px; background: var(--n-lateral); color: var(--n-tinta); font-size: .8rem; line-height: 1.5; text-align: center; }
+
+/* Etiquetas de categoría / tipo */
+.etiqueta { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 650; line-height: 1.45; white-space: nowrap; border: 1px solid transparent; }
+td .etiqueta { white-space: normal; border-radius: var(--n-radio); max-width: 13rem; }
+.tipo-Operación { color: #b42318; background: #fdecea; }
+.tipo-Dato { color: #6b3fa0; background: #f2ecfa; }
+.tipo-Pendiente { color: #475467; background: #eef1f5; }
+.tipo-Aviso { color: #5b6675; background: #f4f5f7; border-color: var(--n-linea); }
+.tipo-OK { color: #2f7d4f; background: #edf8f1; }
+.matriz td.cero { color: #a3adb9; }
+tfoot td { font-weight: 700; border-top: 2px solid var(--n-linea); }
+tr[id] { scroll-margin-top: 1rem; }
+tr:has(.mensaje-celda, .revisar) > td { vertical-align: top; }
+td.mensaje-celda { min-width: 210px; max-width: 420px; color: var(--n-tinta-suave); }
+
+/* Filtros y formulario de revisión de cada venta */
+.filtros { display: flex; gap: .75rem 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; }
+.campo { display: flex; flex-direction: column; gap: .35rem; flex: 0 1 16rem; }
+.campo > label { font-weight: 600; font-size: .9rem; }
+select, textarea, input[type=text] {
+  font: inherit; color: var(--n-tinta); background: var(--n-papel); width: 100%;
+  border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: .45rem .65rem; min-height: 40px;
+}
+.revisar { display: flex; flex-direction: column; gap: .4rem; min-width: 160px; }
+.revisar textarea { min-height: 34px; font-size: .9rem; resize: vertical; }
+.revisar .boton { align-self: flex-start; }
+.check { display: inline-flex; align-items: center; gap: .5rem; font-size: .9rem; cursor: pointer; }
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--n-tinta); }
+
+/* ---------- formularios (parámetros) ---------- */
+.n-bloque h3 { margin: 1.25rem 0 .5rem; font-size: 1rem; }
+input[type=password], input[type=number] {
+  font: inherit; color: var(--n-tinta); background: var(--n-papel); width: 100%;
+  border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: .45rem .65rem; min-height: 40px;
+}
+.ayuda { margin: 0; color: var(--n-tinta-suave); }
+.error { margin: 0; color: #b42318; font-weight: 600; }
 .campo-pie { display: flex; flex-direction: column; gap: .25rem; font-size: .88rem; }
-.campo-pie .error { font-size: .9rem; }
-.campo-ancho { max-width: 48rem; }
-
-/* Fila de campos: las etiquetas comparten alto, así todos los controles de la fila quedan a la misma altura
-   aunque una etiqueta ocupe dos líneas (subgrid: etiqueta / control / pie). */
+.campo-ancho { max-width: 48rem; flex: none; margin-bottom: .75rem; }
+.campo-check > .check { font-size: .95rem; font-weight: 600; }
+/* Las etiquetas comparten alto, así los controles de la fila quedan alineados aunque una ocupe dos líneas. */
 .fila-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .35rem 1.25rem; }
 .fila-campos > .campo { display: grid; grid-row: span 3; grid-template-rows: subgrid; gap: .35rem; margin-bottom: .75rem; }
 .fila-campos > .campo > label { align-self: end; }
+.filtros-abajo { margin: 1rem 0 0; }
 
-/* Casilla con su texto al lado. */
-.check { display: inline-flex; align-items: center; gap: .5rem; font-size: .9rem; cursor: pointer; }
-.campo-check > .check { font-size: .95rem; font-weight: 600; }
-
-/* Filtros en línea: campos y botón alineados por la base. */
-.filtros { display: flex; gap: .75rem 1rem; flex-wrap: wrap; align-items: flex-end; }
-.filtros .campo { flex: 0 1 16rem; }
-.filtros + .tabla-envoltura { margin-top: var(--espacio); }
-
-/* Acceso */
-.acceso { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
-.acceso-caja { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 2rem; width: min(420px, 100%); }
-.acceso-caja .marca-sub { color: var(--tinta-suave); }
-.acceso-caja h1 { margin: .25rem 0 .5rem; }
+/* ---------- acceso (login) ---------- */
+.acceso { min-height: 100vh; display: grid; place-items: center; padding: 1rem; background: var(--n-lateral); }
+.acceso-caja { background: var(--n-papel); border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: 2rem; width: min(420px, 100%); }
+.acceso-caja .marca-sub { margin: 0; font-size: .85rem; color: var(--n-tinta-suave); }
+.acceso-caja h1 { margin: .25rem 0 .5rem; font-size: 1.5rem; }
 .formulario { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.5rem; }
 .formulario label { font-weight: 600; font-size: .95rem; }
 .formulario input + label { margin-top: .75rem; }
-.formulario .boton { margin-top: 1.25rem; }
+.formulario .boton { margin-top: 1.25rem; justify-content: center; }
 
-/* ------------------------------------------------------------ asistente */
-.pasos { display: flex; margin: 0 0 1.5rem; padding: 0; list-style: none; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); overflow: hidden; }
-.pasos li { flex: 1; padding: .7rem 1rem; color: var(--tinta-suave); border-right: 1px solid var(--linea); font-size: .95rem; }
-.pasos li:last-child { border-right: 0; }
-.pasos li.actual { color: var(--tinta); font-weight: 650; box-shadow: inset 0 -3px 0 var(--tinta); }
-.pasos li.hecho { color: var(--tinta); }
-.zona-carga { display: flex; flex-direction: column; gap: .5rem; border: 2px dashed var(--borde-campo); border-radius: var(--radio); padding: 1.25rem 1.5rem; background: #fafbfc; }
-details > summary { cursor: pointer; color: var(--tinta-suave); }
-details[open] > summary { margin-bottom: .75rem; }
-details > * + * { margin-top: .75rem; }
-
-/* ------------------------------------------------------------ tablas */
-.tabla-envoltura { position: relative; overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel); }
-table { border-collapse: collapse; width: 100%; font-size: .93rem; }
-th, td { padding: .55rem .6rem; border-bottom: 1px solid var(--linea-suave); text-align: left; vertical-align: middle; }
-th:first-child, td:first-child { padding-left: .85rem; }
-th:last-child, td:last-child { padding-right: .85rem; }
-/* Encabezados abajo: si uno ocupa dos líneas, todos quedan apoyados sobre la misma base. */
-th { background: #f7f9fb; font-weight: 650; color: var(--tinta-suave); font-size: .85rem; line-height: 1.3; vertical-align: bottom; position: sticky; top: 0; }
-th.num { white-space: normal; }
-tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: #fafbfc; }
-tfoot td { font-weight: 700; border-top: 2px solid var(--linea); border-bottom: 0; }
-tr[id] { scroll-margin-top: 1rem; }
-/* Filas con texto largo o formulario: todo arriba, para leer de izquierda a derecha en la misma línea. */
-tr:has(.mensaje-celda, .revisar) > td { vertical-align: top; }
-td.mensaje-celda { min-width: 210px; max-width: 420px; color: var(--tinta-suave); }
-td:has(> .etiqueta) { min-width: 9rem; }
-td > .boton, td > form > .boton { min-height: var(--alto-control-tabla); padding: .3rem .85rem; }
-td .ayuda { font-size: .88rem; }
-
-/* Formulario de revisión dentro de una tabla */
-.revisar { display: flex; flex-direction: column; gap: .4rem; min-width: 160px; }
-.revisar textarea, .revisar input[type=text] { min-height: var(--alto-control-tabla); padding: .35rem .6rem; font-size: .9rem; }
-.revisar .boton { min-height: var(--alto-control-tabla); padding: .3rem .85rem; align-self: flex-start; }
-
-/* ------------------------------------------------------------ medios de pago: color + nombre siempre juntos */
-.medio { display: inline; font-weight: 650; white-space: nowrap; }
-.medio::before {
-  content: ""; display: inline-block; width: 4px; height: 1em; margin-right: .45rem;
-  border-radius: 2px; background: currentColor; vertical-align: -.15em;
-}
-.medio-DEBITO { color: var(--debito); }
-.medio-CREDITO { color: var(--credito-texto); }
-.medio-PREPAGO { color: var(--prepago); }
-.fila-medio-DEBITO > td:first-child { box-shadow: inset 4px 0 0 var(--debito); }
-.fila-medio-CREDITO > td:first-child { box-shadow: inset 4px 0 0 var(--credito); }
-.fila-medio-PREPAGO > td:first-child { box-shadow: inset 4px 0 0 var(--prepago); }
-
-/* ------------------------------------------------------------ resultado */
-.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--espacio); margin: 0 0 1.5rem; }
-.indicador { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1rem 1.25rem; }
-.indicador dt { font-size: .88rem; color: var(--tinta-suave); }
-.indicador dd { margin: .2rem 0 0; font-size: 1.45rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.indicador dd small { font-size: .95rem; font-weight: 600; }
-.indicador.alerta dd { color: var(--operacion); }
-.indicador.bien dd { color: var(--ok); }
-
-.pestanas { display: flex; gap: .25rem; border-bottom: 1px solid var(--linea); margin-bottom: 1.5rem; flex-wrap: wrap; }
-.pestanas a { display: inline-flex; align-items: center; padding: .7rem 1rem; text-decoration: none; color: var(--tinta-suave); border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 600; }
-.pestanas a:hover { color: var(--tinta); }
-.pestanas a.activa { color: var(--tinta); border-bottom-color: var(--tinta); }
-.pestanas a.pestana-DEBITO.activa { border-bottom-color: var(--debito); color: var(--debito); }
-.pestanas a.pestana-CREDITO.activa { border-bottom-color: var(--credito); color: var(--credito-texto); }
-.pestanas a.pestana-PREPAGO.activa { border-bottom-color: var(--prepago); color: var(--prepago); }
-.contador { display: inline-block; min-width: 1.6em; padding: 0 .4em; margin-left: .4rem; border-radius: 999px; background: var(--linea-suave); color: var(--tinta); font-size: .8rem; line-height: 1.5; text-align: center; }
-
-/* Etiquetas de categoría / tipo. En tablas pueden ocupar dos líneas y siguen viéndose como etiqueta. */
-.etiqueta { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .8rem; font-weight: 650; line-height: 1.45; white-space: nowrap; border: 1px solid transparent; }
-td .etiqueta { white-space: normal; border-radius: var(--radio); max-width: 13rem; }
-.tipo-Operación { color: var(--operacion); background: var(--operacion-fondo); }
-.tipo-Dato { color: var(--dato); background: var(--dato-fondo); }
-.tipo-Pendiente { color: var(--pendiente); background: var(--pendiente-fondo); }
-.tipo-Aviso { color: var(--aviso); background: var(--aviso-fondo); border-color: var(--linea); }
-.tipo-OK { color: var(--ok); background: var(--ok-fondo); }
-.matriz td.cero { color: #a3adb9; }
-
-/* Estados */
-.estado-ok { color: var(--ok); font-weight: 650; }
-.estado-error { color: var(--operacion); font-weight: 650; }
-.estado-aviso { color: var(--credito-texto); font-weight: 650; }
-
-/* ------------------------------------------------------------ conciliación en dólares (app "web" de main) */
-.sobretitulo { font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-suave); margin-bottom: .25rem; }
-.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 0 1.5rem; align-items: start; }
+/* ---------- conciliación en dólares (app "web") ---------- */
+.sobretitulo { margin: 0 0 .25rem; font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--n-tinta-suave); }
+.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 1.5rem; align-items: start; }
+.dos-columnas > div { display: flex; flex-direction: column; gap: 1.5rem; }
 .pares-campos { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .75rem 1rem; align-items: center; }
 .pares-campos > label { font-weight: 600; font-size: .95rem; }
 .carga-archivos { display: flex; flex-direction: column; gap: 1.25rem; }
 .grupo-archivos { display: grid; grid-template-columns: minmax(0, 1fr) 9.5rem; gap: .5rem .75rem; align-items: center; }
-.grupo-archivos input[type=file] {
-  width: 100%; min-height: 40px; padding: .25rem; font-size: .9rem; color: var(--tinta-suave);
-  border: 1px solid var(--borde-campo); border-radius: var(--radio); background: var(--papel);
-}
-.grupo-archivos input[type=file]::file-selector-button { min-height: 30px; padding: .2rem .75rem; margin-right: .6rem; font-size: .88rem; }
 .grupo-archivos .selector-archivo {
-  min-height: 40px; padding: .25rem; gap: .6rem; font-size: .9rem;
-  border: 1px solid var(--borde-campo); border-radius: var(--radio); background: var(--papel);
+  min-height: 40px; padding: .25rem; gap: .6rem; font-size: .9rem; flex-wrap: nowrap; min-width: 0;
+  border: 1px solid var(--n-linea); border-radius: var(--n-radio); background: var(--n-papel);
 }
-.grupo-archivos .selector-archivo .boton { min-height: 30px; padding: .2rem .75rem; font-size: .88rem; }
-.boton-etiqueta { min-height: 40px; padding: .4rem .75rem; background: var(--pendiente-fondo); color: var(--tinta); font-size: .9rem; cursor: default; }
-.boton-etiqueta:hover { border-color: var(--linea); }
+.grupo-archivos .selector-archivo .boton { min-height: 30px; padding: .2rem .75rem; font-size: .88rem; flex: none; }
+.grupo-archivos .selector-archivo-estado { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boton-etiqueta { justify-content: center; background: var(--n-fondo); font-size: .9rem; cursor: default; }
 .boton-etiqueta[disabled] { opacity: 1; cursor: default; }
-.boton-ancho { width: 100%; }
+.boton-ancho { width: 100%; justify-content: center; }
+.acciones { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
 .acciones-columna { flex-direction: column; align-items: stretch; gap: .5rem; }
-td.celda-total { background: var(--credito-fondo); font-weight: 650; }
+td.celda-total { background: #fbf2e3; font-weight: 650; }
 
-/* ------------------------------------------------------------ notebooks (1366 px): menos aire para que las tablas
-   del resultado entren completas sin barra horizontal */
-@media (max-width: 1500px) {
-  :root { --ancho-lateral: 216px; }
-  .contenido { padding: 1.75rem 1.5rem 3rem; }
-  .bloque { padding: 1.25rem; }
-  .revisar { min-width: 150px; }
-}
-
-/* ------------------------------------------------------------ pantallas angostas */
-@media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; background: var(--fondo); }
-  .lateral { position: static; height: auto; gap: 1rem; }
-  .lateral nav { flex-direction: row; flex-wrap: wrap; }
-  .contenido { padding: 1.25rem; }
-  .pasos { flex-direction: column; }
-  .pasos li { border-right: 0; border-bottom: 1px solid var(--linea); }
-  .pasos li:last-child { border-bottom: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+/* ---------- celular ---------- */
+@media (max-width: 760px) {
+  .n-app { grid-template-columns: 1fr; }
+  .n-lateral { position: static; height: auto; }
+  .n-contenido { padding: 1rem; }
+  .n-banner { aspect-ratio: 2 / 1; }
 }

@@ -18,10 +18,4 @@ urlpatterns = [
     path("pendientes/", views.pendientes, name="pendientes"),
     path("pendientes/<int:pk>/revisar/", views.revisar_pendiente, name="revisar_pendiente"),
     path("parametros/", views.parametros, name="parametros"),
-    # Interfaz nueva en construcción; convive con la actual hasta reemplazarla.
-    path("nuevo/", views.nuevo_inicio, name="nuevo_inicio"),
-    path("nuevo/historial/", views.nuevo_lista, name="nuevo_lista"),
-    path("nuevo/<int:pk>/", views.nuevo_archivos, name="nuevo_archivos"),
-    path("nuevo/<int:pk>/revision/", views.nuevo_revision, name="nuevo_revision"),
-    path("nuevo/<int:pk>/resultado/", views.nuevo_detalle, name="nuevo_detalle"),
 ]
