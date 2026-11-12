@@ -14,7 +14,7 @@ def test_pdf_septiembre(septiembre_procesado):
     lector = PdfReader(BytesIO(contenido))
     texto = "\n".join(p.extract_text() for p in lector.pages)
     assert "HOTELERA SAN FRANCISCO S.A." in texto
-    assert f"Conciliación Transbank N° {septiembre_procesado.pk}" in texto
+    assert septiembre_procesado.etiqueta in texto
     posiciones = [texto.index(s) for s in SECCIONES]
     assert posiciones == sorted(posiciones)
     assert f"Página 1 de {len(lector.pages)}" in texto

@@ -1,0 +1,73 @@
+{% extends "interfaz_nueva/nuevo_base.html" %}
+{% load static conciliacion_extras %}
+{% block titulo %}{% if conc %}{{ conc.etiqueta }}{% else %}Nueva conciliación{% endif %}{% endblock %}
+{% block contenido %}
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
+
+<section class="n-bloque">
+  <h1>Conciliación CLP</h1>
+  {% if conc %}<p class="n-periodo">{{ conc.etiqueta }}</p>{% endif %}
+  <p class="n-ayuda">Sube el bordero, la cartola y los reportes Transbank (.xlsx o .xls). Puedes elegir todos los archivo a la vez.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="n-zona-carga">
+      <label for="archivos"><strong>Archivos Excel</strong></label>
+      <input type="file" id="archivos" name="archivos" multiple accept=".xlsx,.xls">
+    </div>
+    <div class="n-acciones">
+      <button type="submit" class="boton boton-principal">Cargar</button>
+    </div>
+  </form>
+</section>
+
+{% if conc %}
+{% if conc.estado == "PROCESADA" %}
+<section class="n-bloque">
+  <p><strong>{{ conc.etiqueta }} ya está conciliada</strong> ({{ conc.procesada_en|date:"d/m/Y H:i" }}). Si agregas o quitas archivos vuelve a borrador hasta que la concilies de nuevo; tus observaciones y revisiones se conservan. <a href="{% url 'conciliacion:nuevo_detalle' conc.pk %}">Ver el resultado actual</a>.</p>
+</section>
+{% endif %}
+
+<section class="n-bloque">
+  <h2 class="n-titulo-icono">
+    <img src="{% static 'conciliacion/img/iconos/file-check.svg' %}" alt="" class="n-icono">
+    Archivos cargados
+  </h2>
+  {% if archivos %}
+  <div class="tabla-envoltura">
+    <table>
+      <thead><tr><th>Archivo</th><th>Se leyó como</th><th>Período o abono</th><th class="num">Filas</th><th>Estado</th><th><span class="sr-only">Quitar</span></th></tr></thead>
+      <tbody>
+      {% for a in archivos %}
+        <tr{% if a.medio %} class="fila-medio-{{ a.medio }}"{% endif %}>
+          <td>{{ a.nombre }}</td>
+          <td>{{ a.get_tipo_display }}{% if a.medio %} · <span class="medio medio-{{ a.medio }}">{{ a.get_medio_display }}</span>{% elif a.por_medio %} · {{ a.etiqueta_medio }}{% endif %}{% if a.banco %} · {{ a.banco }}{% endif %}</td>
+          <td>{% if a.fecha_abono %}Abono {{ a.fecha_abono|date:"d/m/Y" }}{% elif a.desde %}{{ a.desde|date:"d/m/Y" }} al {{ a.hasta|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+          <td class="num">{{ a.filas|miles }}</td>
+          <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% elif a.moneda_extranjera %}<span class="estado-error">En {{ a.moneda|default:"moneda no informada" }}: no se concilia</span>{% elif a.ya_conciliado %}{% include "interfaz_nueva/_ya_conciliado.html" %}{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
+          <td><div class="celda-acciones">
+            {% if a.ya_conciliado %}<form method="post">{% csrf_token %}<button type="submit" name="reemplazar" value="{{ a.pk }}" class="boton" title="Quita el archivo de la otra conciliación (vuelve a borrador y conserva sus observaciones) y lo deja en esta" aria-label="Reemplazar {{ a.nombre }} en la otra conciliación">Reemplazar</button></form>{% endif %}
+            <form method="post">{% csrf_token %}<button type="submit" name="eliminar" value="{{ a.pk }}" class="boton boton-peligro" aria-label="Quitar {{ a.nombre }}">Quitar</button></form>
+          </div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <details>
+    <summary>Conciliar de nuevo con otros archivos</summary>
+    <p class="n-ayuda">Quita todos los archivos cargados para subir otra versión del bordero, las cartolas y los reportes Transbank de esta conciliación. Los pagos del bordero que solo venían en estos archivos se descartan; los que ya usó otra conciliación se mantienen. Tus observaciones se conservan y se vuelven a aplicar al conciliar.</p>
+    <form method="post">{% csrf_token %}<button type="submit" name="quitar_todos" value="1" class="boton boton-peligro">Quitar todos los archivos</button></form>
+  </details>
+  {% else %}
+  <p class="n-ayuda">Todavía no hay archivos.</p>
+  {% endif %}
+</section>
+
+<div class="n-acciones">
+  <a class="boton" href="{% url 'conciliacion:nuevo_inicio' %}">Volver</a>
+  <a class="boton boton-principal" href="{% url 'conciliacion:nuevo_revision' conc.pk %}">Continuar revisión</a>
+</div>
+{% endif %}
+{% endblock %}

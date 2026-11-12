@@ -43,7 +43,7 @@ def test_mismos_transbank_en_otra_conciliacion_bloquean(septiembre_procesado, cr
     transbank = nueva.archivos.filter(tipo=ArchivoCargado.TRANSBANK)
     assert set(choques) == {a.id for a in transbank}
     assert all(o.conciliacion == septiembre_procesado for otros in choques.values() for o in otros)
-    assert any(f"ya se concilió en Conciliación N° {septiembre_procesado.pk}" in e for e in validar(nueva))
+    assert any(f"ya se concilió en {septiembre_procesado.etiqueta}" in e for e in validar(nueva))
 
 
 def test_cartola_y_bordero_repetidos_no_bloquean(septiembre_procesado, crear_conciliacion):
@@ -136,7 +136,7 @@ def test_archivos_muestra_enlace_y_boton_reemplazar(cliente, septiembre_procesad
     nueva = crear_conciliacion()
     html = cliente.get(reverse("conciliacion:archivos", args=[nueva.pk])).content.decode()
     assert reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) in html
-    assert "Ya conciliado en <a" in html and f">Conciliación N° {septiembre_procesado.pk}</a>" in html
+    assert "Ya conciliado en <a" in html and f">{septiembre_procesado.etiqueta}</a>" in html
     assert html.count('name="reemplazar"') == 3
 
 
@@ -147,8 +147,8 @@ def test_boton_reemplazar(cliente, septiembre_procesado, crear_conciliacion):
     debito = nueva.archivos.get(medio="DEBITO")
     r = cliente.post(reverse("conciliacion:archivos", args=[nueva.pk]), {"reemplazar": debito.pk}, follow=True)
     assert r.redirect_chain[-1][0] == reverse("conciliacion:archivos", args=[nueva.pk])
-    assert f"Conciliación N° {septiembre_procesado.pk}, que volvió a borrador" in r.content.decode()
     septiembre_procesado.refresh_from_db()
+    assert f"{septiembre_procesado.etiqueta}, que volvió a borrador" in r.content.decode()
     assert septiembre_procesado.estado == Conciliacion.BORRADOR
     assert debito.id not in conflictos(nueva)
 

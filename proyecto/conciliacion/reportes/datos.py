@@ -62,7 +62,7 @@ def armar(conc: Conciliacion) -> dict:
         "conciliacion": conc,
         "encabezado": {
             "empresa": EMPRESA, "departamento": DEPARTAMENTO, "rut": RUT,
-            "titulo": f"Conciliación Transbank N° {conc.pk}",
+            "titulo": conc.etiqueta,
             "subtitulo": "Cierre por fecha de abono",
             "cuenta": f"{cartola.banco} {cartola.cuenta}".strip() if cartola else "Sin cartola",
             "generado": timezone.localtime(),

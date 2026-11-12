@@ -1,0 +1,49 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Inicio{% endblock %} · Sistema de conciliación financiera</title>
+  <link rel="stylesheet" href="{% static 'conciliacion/nuevo.css' %}">
+  <script src="{% static 'conciliacion/archivos.js' %}" defer></script>
+</head>
+<body>
+<div class="n-app">
+  <aside class="n-lateral" aria-label="Menú principal">
+    <a class="n-marca" href="{% url 'conciliacion:nuevo_inicio' %}">
+      {# LOGO: guarda la imagen en conciliacion/static/conciliacion/img/logo.webp #}
+      <span class="n-logo">
+        <img src="{% static 'conciliacion/img/logo.webp' %}" alt="" onerror="this.remove()">
+      </span>
+      <span class="n-marca-texto">
+        <span class="n-titulo">Sistema de conciliación financiera</span>
+        <span class="n-subtitulo">Hotel Plaza San Francisco</span>
+      </span>
+    </a>
+    <nav class="n-menu">
+      {% with ruta=request.resolver_match.url_name %}
+      <a href="{% url 'conciliacion:nuevo_inicio' %}" class="{% if ruta == 'nuevo_inicio' or ruta == 'nuevo_archivos' or ruta == 'nuevo_revision' %}activo{% endif %}">Nueva conciliación</a>
+      {# Botones sin acción por ahora #}
+      <a href="{% url 'conciliacion:nuevo_lista' %}" class="{% if ruta == 'nuevo_lista' %}activo{% endif %}">Historial</a>
+      <button type="button" title="Próximamente">Pendientes</button>
+      <button type="button" title="Próximamente">Conciliación en US$</button>
+      <button type="button" title="Próximamente">Resumen última conciliación</button>
+      <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}">Parámetros</a>
+      {% endwith %}
+    </nav>
+    <div class="n-usuario">
+      <span>{{ user.get_full_name|default:user.username }}</span>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
+    </div>
+  </aside>
+  <main class="n-contenido">
+    {% if messages %}
+      <div class="n-mensajes">
+        {% for m in messages %}<p class="n-mensaje n-mensaje-{{ m.tags }}" role="status">{{ m }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

@@ -31,7 +31,7 @@ def inicio(request):
 
 @login_required
 def lista(request):
-    return render(request, "conciliacion/lista.html", {"conciliaciones": Conciliacion.objects.all()})
+    return render(request, "conciliacion/lista.html", {"conciliaciones": Conciliacion.objects.prefetch_related("archivos")})
 
 
 # ------------------------------------------------------------------ asistente
@@ -42,11 +42,40 @@ def lista(request):
 def nueva(request):
     """Crea una conciliación sin fecha; si ya hay un borrador vacío que nunca se procesó, se reutiliza para no
     acumularlos (una conciliación procesada y vaciada conserva su historia y no se reutiliza)."""
+    return redirect("conciliacion:archivos", _borrador(request).pk)
+
+
+def _borrador(request) -> Conciliacion:
     conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True)
                  if not c.parametros and not c.observaciones), None)
-    if conc is None:
-        conc = Conciliacion.objects.create(creada_por=request.user)
-    return redirect("conciliacion:archivos", conc.pk)
+    return conc or Conciliacion.objects.create(creada_por=request.user)
+
+
+def _guardar_subidos(request, conc) -> None:
+    """Guarda y lee los archivos subidos en `request.FILES["archivos"]`, avisando con mensajes."""
+    subidos = request.FILES.getlist("archivos")
+    if not subidos:
+        messages.error(request, "Selecciona al menos un archivo.")
+    leidos = 0
+    for f in subidos:
+        huella = servicio.sha256_de(f)
+        if conc.archivos.filter(sha256=huella).exists():
+            messages.warning(request, f"Archivo duplicado: {f.name} ya estaba cargado; no se agregó de nuevo.")
+            continue
+        if conc.estado == Conciliacion.PROCESADA:
+            servicio.reabrir(conc)
+            _aviso_reabierta(request, conc)
+        ac = ArchivoCargado(conciliacion=conc, nombre=f.name, sha256=huella)
+        ac.archivo.save(f.name, f, save=False)
+        ac.save()
+        servicio.leer_archivo(ac)
+        if ac.error:
+            messages.error(request, f"{ac.nombre}: {ac.error}")
+        else:
+            leidos += 1
+    if leidos:
+        messages.success(request, f"{leidos} archivo{'s' if leidos > 1 else ''} leído{'s' if leidos > 1 else ''} "
+                                  "correctamente. Revisa cómo se reconoció cada uno en la tabla.")
 
 
 def _aviso_reabierta(request, conc):
@@ -63,57 +92,81 @@ def _con_duplicados(conc, choques: dict | None = None) -> list[ArchivoCargado]:
     return archivos
 
 
+def _acciones_archivos(request, conc) -> None:
+    """POST de la página de archivos (las dos interfaces): quitar, reemplazar, quitar todos o subir."""
+    procesada = conc.estado == Conciliacion.PROCESADA
+    if "eliminar" in request.POST:
+        ac = get_object_or_404(ArchivoCargado, pk=request.POST["eliminar"], conciliacion=conc)
+        servicio.quitar_archivo(ac)
+        if procesada:
+            _aviso_reabierta(request, conc)
+        messages.info(request, f"Se quitó {ac.nombre}.")
+    elif "reemplazar" in request.POST:
+        ac = get_object_or_404(ArchivoCargado, pk=request.POST["reemplazar"], conciliacion=conc)
+        for otra in servicio.reemplazar(ac):
+            messages.warning(request, f"Se quitó {ac.nombre} de {otra.etiqueta}, que volvió a borrador: "
+                                      "vuelve a conciliarla. Sus observaciones se conservan.")
+    elif "quitar_todos" in request.POST:
+        servicio.quitar_todos(conc)
+        if procesada:
+            _aviso_reabierta(request, conc)
+        messages.info(request, "Se quitaron todos los archivos. Sube los nuevos para conciliar de nuevo.")
+    else:
+        _guardar_subidos(request, conc)
+
+
 @login_required
 def archivos(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
     if request.method == "POST":
-        procesada = conc.estado == Conciliacion.PROCESADA
-        if "eliminar" in request.POST:
-            ac = get_object_or_404(ArchivoCargado, pk=request.POST["eliminar"], conciliacion=conc)
-            servicio.quitar_archivo(ac)
-            if procesada:
-                _aviso_reabierta(request, conc)
-            messages.info(request, f"Se quitó {ac.nombre}.")
-            return redirect("conciliacion:archivos", conc.pk)
-        if "reemplazar" in request.POST:
-            ac = get_object_or_404(ArchivoCargado, pk=request.POST["reemplazar"], conciliacion=conc)
-            for otra in servicio.reemplazar(ac):
-                messages.warning(request, f"Se quitó {ac.nombre} de {otra.etiqueta}, que volvió a borrador: "
-                                          "vuelve a conciliarla. Sus observaciones se conservan.")
-            return redirect("conciliacion:archivos", conc.pk)
-        if "quitar_todos" in request.POST:
-            servicio.quitar_todos(conc)
-            if procesada:
-                _aviso_reabierta(request, conc)
-            messages.info(request, f"Se quitaron todos los archivos de {conc.etiqueta}. Sube los nuevos para "
-                                   "conciliarlo de nuevo.")
-            return redirect("conciliacion:archivos", conc.pk)
-        subidos = request.FILES.getlist("archivos")
-        if not subidos:
-            messages.error(request, "Selecciona al menos un archivo.")
-        leidos = 0
-        for f in subidos:
-            huella = servicio.sha256_de(f)
-            if conc.archivos.filter(sha256=huella).exists():
-                messages.warning(request, f"Archivo duplicado: {f.name} ya estaba cargado; no se agregó de nuevo.")
-                continue
-            if conc.estado == Conciliacion.PROCESADA:
-                servicio.reabrir(conc)
-                _aviso_reabierta(request, conc)
-            ac = ArchivoCargado(conciliacion=conc, nombre=f.name, sha256=huella)
-            ac.archivo.save(f.name, f, save=False)
-            ac.save()
-            servicio.leer_archivo(ac)
-            if ac.error:
-                messages.error(request, f"{ac.nombre}: {ac.error}")
-            else:
-                leidos += 1
-        if leidos:
-            messages.success(request, f"{leidos} archivo{'s' if leidos > 1 else ''} leído{'s' if leidos > 1 else ''} "
-                                      "correctamente. Revisa cómo se reconoció cada uno en la tabla.")
+        _acciones_archivos(request, conc)
         return redirect("conciliacion:archivos", conc.pk)
     return render(request, "conciliacion/nueva_archivos.html",
                   {"conc": conc, "archivos": _con_duplicados(conc), "pasos": _pasos(1)})
+
+
+# ---------------------------------------------------- interfaz nueva (en construcción)
+
+
+@login_required
+def nuevo_inicio(request):
+    """Home de la interfaz nueva: "Cargar" crea (o reutiliza) un borrador con los archivos y muestra su tabla."""
+    if request.method == "POST":
+        if not request.FILES.getlist("archivos"):
+            messages.error(request, "Selecciona al menos un archivo.")
+            return redirect("conciliacion:nuevo_inicio")
+        conc = _borrador(request)
+        _guardar_subidos(request, conc)
+        return redirect("conciliacion:nuevo_archivos", conc.pk)
+    return render(request, "interfaz_nueva/nuevo_inicio.html")
+
+
+@login_required
+def nuevo_lista(request):
+    """Historial con la interfaz nueva: misma lógica que `lista`."""
+    return render(request, "interfaz_nueva/nuevo_lista.html",
+                  {"conciliaciones": Conciliacion.objects.prefetch_related("archivos")})
+
+
+@login_required
+def nuevo_archivos(request, pk):
+    """Home con los archivos ya cargados de una conciliación: misma lógica que `archivos`."""
+    conc = get_object_or_404(Conciliacion, pk=pk)
+    if request.method == "POST":
+        _acciones_archivos(request, conc)
+        return redirect("conciliacion:nuevo_archivos", conc.pk)
+    return render(request, "interfaz_nueva/nuevo_inicio.html", {"conc": conc, "archivos": _con_duplicados(conc)})
+
+
+@login_required
+def nuevo_revision(request, pk):
+    """Revisión de lectura con la interfaz nueva: misma lógica que `revision`."""
+    conc = get_object_or_404(Conciliacion, pk=pk)
+    choques = servicio.conflictos(conc)
+    return render(request, "interfaz_nueva/nuevo_revision.html", {
+        "conc": conc, "archivos": _con_duplicados(conc, choques), "errores": servicio.validar(conc, choques),
+        "avisos": servicio.advertencias(conc),
+    })
 
 
 @login_required
@@ -130,14 +183,15 @@ def revision(request, pk):
 @require_POST
 def procesar(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
+    nueva = request.POST.get("interfaz") == "nueva"  # el botón de la interfaz nueva vuelve a sus páginas
     errores = servicio.validar(conc)
     if errores:
         for e in errores:
             messages.error(request, e)
-        return redirect("conciliacion:revision", conc.pk)
+        return redirect("conciliacion:nuevo_revision" if nueva else "conciliacion:revision", conc.pk)
     servicio.procesar(conc)
     messages.success(request, f"{conc.etiqueta} procesada.")
-    return redirect("conciliacion:detalle", conc.pk)
+    return redirect("conciliacion:nuevo_detalle" if nueva else "conciliacion:detalle", conc.pk)
 
 
 # ------------------------------------------------------------------ resultado
@@ -148,6 +202,19 @@ def detalle(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
     if conc.estado != Conciliacion.PROCESADA:
         return redirect("conciliacion:revision", conc.pk)
+    return render(request, "conciliacion/resultado.html", _contexto_resultado(request, conc))
+
+
+@login_required
+def nuevo_detalle(request, pk):
+    """Resultado con la interfaz nueva: misma lógica que `detalle`."""
+    conc = get_object_or_404(Conciliacion, pk=pk)
+    if conc.estado != Conciliacion.PROCESADA:
+        return redirect("conciliacion:nuevo_revision", conc.pk)
+    return render(request, "interfaz_nueva/nuevo_resultado.html", _contexto_resultado(request, conc))
+
+
+def _contexto_resultado(request, conc) -> dict:
     datos = armar(conc)
     vista = request.GET.get("vista", "resumen")
     vista = vista if vista in VISTAS else "resumen"
@@ -174,13 +241,13 @@ def detalle(request, pk):
                          "n": datos["capitulos"][m]["resumen"].get("n_falla", 0)})
     pestanas.append({"clave": "pendientes", "nombre": "Pendientes", "n": len(datos["pendientes"])})
 
-    return render(request, "conciliacion/resultado.html", {
+    return {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
         "categorias": categorias, "locales": locales, "filtro_cat": filtro_cat, "filtro_local": filtro_local,
         "pestanas": pestanas, "pasos": _pasos(3),
         "fallas_todas": sorted((v for m in cat.MEDIOS for v in datos["capitulos"][m]["fallas"]),
                                key=lambda v: (cat.GRAVEDAD[v.tipo], cat.MEDIOS.index(v.medio), v.fecha_venta)),
-    })
+    }
 
 
 def _nombre_reporte(extension: str) -> str:
