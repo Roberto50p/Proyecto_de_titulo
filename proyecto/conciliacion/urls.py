@@ -7,6 +7,7 @@ app_name = "conciliacion"
 urlpatterns = [
     path("", views.inicio, name="inicio"),
     path("conciliaciones/", views.lista, name="lista"),
+    path("conciliaciones/clp/", views.clp, name="clp"),
     path("conciliaciones/nueva/", views.nueva, name="nueva"),
     path("conciliaciones/<int:pk>/archivos/", views.archivos, name="archivos"),
     path("conciliaciones/<int:pk>/revision/", views.revision, name="revision"),

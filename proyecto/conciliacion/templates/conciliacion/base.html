@@ -23,7 +23,7 @@
     </a>
     <nav class="n-menu">
       {% with ruta=request.resolver_match.url_name %}
-      <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}">Nueva conciliación</a>
+      <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'clp' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}">Nueva conciliación</a>
       <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}">Historial</a>
       <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}">Pendientes</a>
       <a href="{% url 'PR' %}" class="{% if ruta == 'PR' %}activo{% endif %}">Conciliación en US$</a>

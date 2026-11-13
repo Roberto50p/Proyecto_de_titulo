@@ -42,7 +42,8 @@ def test_inicio_y_archivos(client, db):
     from conciliacion.models import Conciliacion
 
     client.force_login(User.objects.create_user("u"))
-    assert "Cargar" in client.get(reverse("conciliacion:inicio")).content.decode()
+    assert "Nueva conciliación" in client.get(reverse("conciliacion:inicio")).content.decode()
+    assert "Cargar" in client.get(reverse("conciliacion:clp")).content.decode()
     c = Conciliacion.objects.create()
     html = client.get(reverse("conciliacion:archivos", args=[c.pk])).content.decode()
     assert "file-check.svg" in html and "Continuar revisión" in html

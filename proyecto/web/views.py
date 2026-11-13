@@ -50,6 +50,7 @@ async def obtener_datos():
         response = await client.get("https://mindicador.cl/api/dolar")  # Método GET
         response.raise_for_status()  # Lanza error si hay problema (4xx o 5xx)
         datos = response.json()      # Convierte respuesta JSON en dict de Python
+        data_dolar.clear()  # lista global: sin esto se duplica en cada request
         for item in datos['serie']:
             fecha_original = item["fecha"]
             fecha_obj = datetime.fromisoformat(fecha_original.replace("Z", "+00:00"))
@@ -57,7 +58,6 @@ async def obtener_datos():
             #print(f"Fecha: {fecha_formateada}, Valor: {item['valor']}")
             fila={"fecha":fecha_formateada,"valor":item['valor']}
             data_dolar.append(fila)
-        print(data_dolar)
         
 
 
@@ -72,7 +72,10 @@ def inicio(request):
     return render(request,"index.html",mensaje)
 
 def procesamiento(request):
-    asyncio.run(obtener_datos())
+    try:
+        asyncio.run(obtener_datos())
+    except httpx.HTTPError as e:  # mindicador.cl caído o lento: la página sigue, sin el valor del dólar
+        print(f"mindicador.cl no respondió: {e}")
     # definicion de variables que capturan las sumas por tipo de tarjeta
     diccionario = {}
     suma_amex=0

@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -20,15 +21,21 @@ VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO, "pendientes"]
 
 @login_required
 def inicio(request):
-    """Página de inicio: "Cargar" crea (o reutiliza) un borrador con los archivos y lleva a su tabla."""
+    """Página de inicio: "Nueva conciliación" abre un diálogo para elegir dólares o pesos."""
+    return render(request, "conciliacion/inicio.html")
+
+
+@login_required
+def clp(request):
+    """Carga de una conciliación en pesos: "Cargar" crea (o reutiliza) un borrador con los archivos y lleva a su tabla."""
     if request.method == "POST":
         if not request.FILES.getlist("archivos"):
             messages.error(request, "Selecciona al menos un archivo.")
-            return redirect("conciliacion:inicio")
+            return redirect("conciliacion:clp")
         conc = _borrador(request)
         _guardar_subidos(request, conc)
         return redirect("conciliacion:archivos", conc.pk)
-    return render(request, "conciliacion/inicio.html")
+    return render(request, "conciliacion/conciliacionclp.html")
 
 
 @login_required
@@ -123,7 +130,7 @@ def archivos(request, pk):
     if request.method == "POST":
         _acciones_archivos(request, conc)
         return redirect("conciliacion:archivos", conc.pk)
-    return render(request, "conciliacion/inicio.html", {"conc": conc, "archivos": _con_duplicados(conc)})
+    return render(request, "conciliacion/conciliacionclp.html", {"conc": conc, "archivos": _con_duplicados(conc)})
 
 
 @login_required
@@ -249,8 +256,9 @@ def pendientes(request):
     medio_filtro = request.GET.get("medio", "")
     if medio_filtro:
         abiertos = abiertos.filter(medio=medio_filtro)
+    pagina = Paginator(abiertos.order_by("pago__fecha", "pago__hora", "pk"), 30).get_page(request.GET.get("page"))
     return render(request, "conciliacion/pendientes.html", {
-        "pendientes": abiertos.order_by("pago__fecha", "pago__hora"),
+        "pendientes": pagina, "pagina": pagina,
         "total": Pendiente.objects.filter(abierto=True).count(),
         "medios": MEDIO_CHOICES, "medio_filtro": medio_filtro,
     })

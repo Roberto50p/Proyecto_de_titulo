@@ -97,7 +97,28 @@ body { margin: 0; font-family: var(--n-fuente); color: var(--n-tinta); backgroun
 .n-bloque-error h2 { color: #b42318; }
 .n-acciones { gap: .75rem; align-items: center; flex-wrap: wrap; }
 .boton { text-decoration: none; display: inline-flex; align-items: center; }
-.boton[disabled] { opacity: .5; cursor: not-allowed; }
+.boton[disabled], .boton[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+
+/* Diálogo nativo (<dialog>) con el aspecto de .n-bloque */
+.n-dialogo { width: min(28rem, calc(100% - 2rem)); padding: 1.5rem; border: 1px solid var(--n-linea); border-radius: var(--n-radio); background: var(--n-papel); color: var(--n-tinta); }
+.n-dialogo::backdrop { background: rgba(27, 36, 48, .45); }
+.n-dialogo h2 { margin-top: 0; }
+
+/* Fila completa clicable: el enlace del código se estira sobre toda la fila */
+.fila-enlace { position: relative; cursor: pointer; transition: box-shadow .15s; }
+.fila-enlace a { color: inherit; text-decoration: none; }
+.fila-enlace a::after { content: ""; position: absolute; inset: 0; }
+.fila-enlace:hover > td, .fila-enlace:focus-within > td { background: #fffbea; }
+.fila-enlace:hover, .fila-enlace:focus-within { box-shadow: 0 0 0 2px #f2c94c, 0 0 12px rgba(242, 201, 76, .6); }
+
+/* Fila a la que se llegó desde "Qué revisar primero" (#v<pk>) o tras guardar una revisión */
+tr:target > td { background: #fffbea; }
+tr:target { outline: 2px solid #f2c94c; outline-offset: -2px; scroll-margin-top: 2rem; }
+
+/* Paginación (arriba y abajo de tablas largas) */
+.paginacion { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1rem 0; }
+.paginacion-estado { margin: 0 .5rem; color: var(--n-tinta-suave); font-size: .9rem; }
+.paginacion a.boton:hover { background: var(--n-fondo); }
 .boton-peligro { color: #b42318; border-color: #f3c0bb; }
 
 details { margin-top: 1rem; }
@@ -173,7 +194,15 @@ td.mensaje-celda { min-width: 210px; max-width: 420px; color: var(--n-tinta-suav
 /* Filtros y formulario de revisión de cada venta */
 .filtros { display: flex; gap: .75rem 1rem; flex-wrap: wrap; align-items: flex-end; margin-bottom: 1rem; }
 .campo { display: flex; flex-direction: column; gap: .35rem; flex: 0 1 16rem; }
-.campo > label { font-weight: 600; font-size: .9rem; }
+.campo > label, .campo-etiqueta { font-weight: 600; font-size: .9rem; }
+/* Grupo de botones por medio de pago: color de texto de .medio-X; el activo se marca con su color */
+.campo:has(> .grupo-medios) { flex: none; }  /* .campo mide 16rem: el grupo no cabe en una fila */
+.grupo-medios { display: flex; gap: .5rem; }
+.grupo-medios .boton:hover { background: var(--n-fondo); }
+.grupo-medios .boton[aria-pressed="true"] { color: #fff; font-weight: 700; }
+.grupo-medios .medio-DEBITO[aria-pressed="true"] { background: #1f5fa8; border-color: #1f5fa8; }
+.grupo-medios .medio-CREDITO[aria-pressed="true"] { background: #7f5212; border-color: #7f5212; }
+.grupo-medios .medio-PREPAGO[aria-pressed="true"] { background: #2f7d4f; border-color: #2f7d4f; }
 select, textarea, input[type=text] {
   font: inherit; color: var(--n-tinta); background: var(--n-papel); width: 100%;
   border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: .45rem .65rem; min-height: 40px;

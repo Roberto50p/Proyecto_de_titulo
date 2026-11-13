@@ -12,15 +12,15 @@
 
   <form method="get" class="filtros">
     <div class="campo">
-      <label for="medio">Medio de pago</label>
-      <select id="medio" name="medio">
-        <option value="">Todos</option>
-        {% for clave, nombre in medios %}<option value="{{ clave }}"{% if clave == medio_filtro %} selected{% endif %}>{{ nombre }}</option>{% endfor %}
-      </select>
+      <span id="medio-etiqueta" class="campo-etiqueta">Medio de pago</span>
+      <div class="grupo-medios" role="group" aria-labelledby="medio-etiqueta">
+        {# el botón activo envía medio vacío: volver a pulsarlo quita el filtro #}
+        {% for clave, nombre in medios %}<button type="submit" name="medio" value="{% if clave != medio_filtro %}{{ clave }}{% endif %}" class="boton medio medio-{{ clave }}" aria-pressed="{% if clave == medio_filtro %}true{% else %}false{% endif %}">{{ nombre }}</button>{% endfor %}
+      </div>
     </div>
-    <button type="submit" class="boton">Filtrar</button>
   </form>
 
+  {% include "conciliacion/_paginacion.html" with etiqueta="Páginas de pendientes (arriba)" %}
   <div class="tabla-envoltura">
     <table>
       <thead><tr><th>Fecha</th><th>Medio</th><th>Cod. Deb.</th><th>Documento</th><th class="num">Monto</th><th>Hab / cuenta</th><th>Conciliación de origen</th><th>Observación</th></tr></thead>
@@ -51,5 +51,6 @@
       </tbody>
     </table>
   </div>
+  {% include "conciliacion/_paginacion.html" with etiqueta="Páginas de pendientes (abajo)" %}
 </section>
 {% endblock %}

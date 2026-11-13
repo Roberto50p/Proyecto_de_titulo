@@ -86,10 +86,10 @@
         <thead><tr><th>Medio</th><th>Fecha</th><th>Código</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th>Categoría</th><th>Qué hacer</th></tr></thead>
         <tbody>
         {% for v in fallas_todas %}
-          <tr class="fila-medio-{{ v.medio }}">
+          <tr class="fila-medio-{{ v.medio }} fila-enlace">
             <td><span class="medio medio-{{ v.medio }}">{{ v.medio|medio }}</span></td>
             <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
-            <td><strong>{{ v.codigo_autorizacion }}</strong></td>
+            <td><a href="?vista={{ v.medio }}#v{{ v.pk }}" aria-label="Ver {{ v.codigo_autorizacion }} en {{ v.medio|medio }}"><strong>{{ v.codigo_autorizacion }}</strong></a></td>
             <td class="num">{{ v.monto_original|pesos }}</td>
             <td class="num">{{ v.monto_bordero|pesos }}</td>
             <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
