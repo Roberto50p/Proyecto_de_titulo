@@ -31,6 +31,13 @@
       <button type="button" title="Próximamente">Resumen última conciliación</button>
       <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}">Parámetros</a>
       {% endwith %}
+      {% if user.is_superuser %}
+      <form method="post" action="{% url 'conciliacion:limpiar_base' %}" class="n-limpiar"
+            onsubmit="var r = prompt('Se borrarán TODAS las conciliaciones, archivos, pagos del bordero y pendientes. Los parámetros se conservan.\n\nEscribe LIMPIAR para confirmar:'); if (r === null) return false; this.confirmacion.value = r; return true;">
+        {% csrf_token %}<input type="hidden" name="confirmacion">
+        <button type="submit">Limpiar base de datos</button>
+      </form>
+      {% endif %}
     </nav>
     <div class="n-usuario">
       <span>{{ user.get_full_name|default:user.username }}</span>

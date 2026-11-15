@@ -162,7 +162,7 @@
       <div class="campo">
         <label for="categoria">Categoría</label>
         <select id="categoria" name="categoria">
-          <option value="">Fallas y avisos</option>
+          <option value="">Fallas y avisos (por separado)</option>
           {% for k, nombre, n in categorias %}<option value="{{ k }}"{% if k == filtro_cat %} selected{% endif %}>{{ nombre }} ({{ n }})</option>{% endfor %}
         </select>
       </div>
@@ -176,28 +176,19 @@
       <button type="submit" class="boton">Filtrar</button>
     </form>
 
-    <div class="tabla-envoltura">
-      <table>
-        <thead><tr><th>Fecha</th><th>Código</th><th>Local</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th class="num">Diferencia</th><th>Categoría</th><th>Qué hacer</th><th>Revisión</th></tr></thead>
-        <tbody>
-        {% for v in registros %}
-          <tr id="v{{ v.pk }}">
-            <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
-            <td><strong>{{ v.codigo_autorizacion }}</strong>{% if v.codigo_sugerido %}<br><span class="n-ayuda">bordero: {{ v.codigo_sugerido }}</span>{% endif %}{% if v.cuota %}<br><span class="n-ayuda">cuota {{ v.cuota }}</span>{% endif %}</td>
-            <td>{{ v.local }}</td>
-            <td class="num">{{ v.monto_original|pesos }}</td>
-            <td class="num">{{ v.monto_bordero|pesos }}</td>
-            <td class="num">{{ v.diferencia|pesos }}</td>
-            <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
-            <td class="mensaje-celda">{{ v.mensaje }}{% if v.nota %}<br><em>{{ v.nota }}</em>{% endif %}</td>
-            <td>{% include "conciliacion/_revisar_venta.html" %}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="9">No hay registros con este filtro.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    {% if filtro_cat %}
+      {% include "conciliacion/_tabla_ventas.html" with ventas=registros vacio="No hay registros con este filtro." %}
+    {% else %}
+      <h3 class="bloque-fallas">Fallas <span class="contador">{{ fallas|length }}</span></h3>
+      <p class="n-ayuda">Problemas que hay que resolver: son los que cuenta la pestaña.</p>
+      {% include "conciliacion/_tabla_ventas.html" with ventas=fallas vacio="No hay fallas en las ventas de este medio." %}
+
+      <details class="bloque-avisos"{% if not fallas %} open{% endif %}>
+        <summary><h3>Avisos <span class="contador contador-aviso">{{ avisos|length }}</span></h3></summary>
+        <p class="n-ayuda">No son errores: ventas que no se pudieron comparar (por ejemplo, de días que ningún bordero cargado cubre) o cuotas en seguimiento.</p>
+        {% include "conciliacion/_tabla_ventas.html" with ventas=avisos vacio="No hay avisos." %}
+      </details>
+    {% endif %}
   </section>
   {% if capitulo.otros %}
     <section class="n-bloque">

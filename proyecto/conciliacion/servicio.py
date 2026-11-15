@@ -140,6 +140,25 @@ def validar(conc: Conciliacion, choques: dict | None = None) -> list[str]:
     return errores
 
 
+def _ventas_sin_bordero(a: ArchivoCargado, borderos: list[tuple]) -> list[str]:
+    """Avisos por cada día de venta del archivo Transbank que ningún bordero cubre (el crédito se abona días después
+    de la venta, así que su archivo suele traer ventas anteriores al bordero). Las cuotas 2 y 3 se excluyen: su venta
+    es de meses anteriores y se siguen como cuota."""
+    ventas = leer_transbank(a.archivo.path).ventas
+    por_dia = Counter()
+    for f in ventas.to_dict("records"):
+        cuota = f["cuota_num"]
+        if f["tipo_movimiento"].lower() != "venta" or (not pd.isna(cuota) and int(cuota) > 1):
+            continue
+        dia = pd.Timestamp(f["fecha_venta"]).date()
+        if not any(d <= dia <= h for d, h in borderos):
+            por_dia[dia] += 1
+    return [f"{a.nombre}: {n} venta{'s' if n > 1 else ''} del {fmt_fecha(dia)} sin bordero que cubra esa fecha; "
+            "las que no se registraron en el bordero los días siguientes quedarán como 'Fuera del período del "
+            "bordero'. Carga también el bordero de ese día para compararlas."
+            for dia, n in sorted(por_dia.items())]
+
+
 def advertencias(conc: Conciliacion) -> list[str]:
     """Situaciones que no impiden conciliar pero conviene saber."""
     avisos = []
@@ -150,10 +169,8 @@ def advertencias(conc: Conciliacion) -> list[str]:
     borderos = [(a.desde, a.hasta) for a in archivos if a.tipo == ArchivoCargado.BORDERO]
     borderos += [(c.desde, c.hasta) for c in CoberturaBordero.objects.all()]
     for a in archivos:
-        if a.tipo == ArchivoCargado.TRANSBANK and a.desde and borderos:
-            if not any(d <= a.desde <= h for d, h in borderos):
-                avisos.append(f"{a.nombre}: hay ventas desde el {fmt_fecha(a.desde)} que ningún bordero cargado "
-                              "cubre; quedarán como 'Fuera del período del bordero'.")
+        if a.tipo == ArchivoCargado.TRANSBANK and borderos:
+            avisos += _ventas_sin_bordero(a, borderos)
     cartolas = [(a.desde, a.hasta) for a in archivos if a.tipo == ArchivoCargado.CARTOLA]
     for a in archivos:
         if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and cartolas:
@@ -305,6 +322,21 @@ def quitar_todos(conc: Conciliacion) -> None:
     with transaction.atomic():
         for ac in list(conc.archivos.all()):
             quitar_archivo(ac)
+
+
+def limpiar_base() -> int:
+    """Borra todas las conciliaciones y lo que cuelga de ellas (archivos, ventas, abonos, cartola, pendientes, pagos y
+    cobertura del bordero). Conserva parámetros, equivalencias y usuarios. Devuelve cuántas conciliaciones borró."""
+    archivos = [ac.archivo for ac in ArchivoCargado.objects.all()]
+    with transaction.atomic():
+        n = Conciliacion.objects.count()
+        Pendiente.objects.all().delete()
+        Conciliacion.objects.all().delete()  # en cascada: archivos, ventas, abonos y movimientos de cartola
+        PagoBordero.objects.all().delete()
+        CoberturaBordero.objects.all().delete()
+    for f in archivos:  # los archivos físicos se borran solo si la base quedó limpia
+        f.delete(save=False)
+    return n
 
 
 def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:

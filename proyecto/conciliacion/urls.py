@@ -19,4 +19,5 @@ urlpatterns = [
     path("pendientes/", views.pendientes, name="pendientes"),
     path("pendientes/<int:pk>/revisar/", views.revisar_pendiente, name="revisar_pendiente"),
     path("parametros/", views.parametros, name="parametros"),
+    path("limpiar-base/", views.limpiar_base, name="limpiar_base"),
 ]

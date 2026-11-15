@@ -168,3 +168,22 @@ def test_revisar_vuelve_a_la_misma_fila(cliente, septiembre_procesado):
     v = septiembre_procesado.ventas.get(codigo_autorizacion="007626")
     html = cliente.get(reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) + "?vista=DEBITO").content.decode()
     assert f'id="v{v.pk}"' in html and f'#v{v.pk}"' in html
+
+
+def test_credito_separa_fallas_de_avisos(cliente, septiembre_procesado):
+    """La pestaña Crédito cuenta 5 fallas; los 30 avisos (ventas del 03/09 sin bordero y cuotas) van aparte."""
+    url = reverse("conciliacion:detalle", args=[septiembre_procesado.pk])
+    html = cliente.get(url + "?vista=CREDITO").content.decode()
+    assert 'aria-label="5 registros"' in html
+    assert 'Fallas <span class="contador">5</span>' in html
+    assert 'Avisos <span class="contador contador-aviso">30</span>' in html
+    fallas, avisos = html.split('class="bloque-avisos"')
+    assert fallas.count('<tr id="v') == 5 and avisos.count('<tr id="v') == 30
+    filtrado = cliente.get(url + "?vista=CREDITO&categoria=FUERA_PERIODO").content.decode()
+    assert "bloque-avisos" not in filtrado and filtrado.count('<tr id="v') == 28
+
+
+def test_advierte_ventas_de_credito_sin_bordero(cliente, septiembre_procesado):
+    html = cliente.get(reverse("conciliacion:revision", args=[septiembre_procesado.pk])).content.decode()
+    assert "CREDITOS TBK 08-09.xlsx: 31 ventas del 03/09/2026 sin bordero que cubra esa fecha" in html
+    assert "DEBITOS TBK 08-09.xlsx:" not in html.split("sin bordero")[0].rsplit("</li>", 1)[-1]

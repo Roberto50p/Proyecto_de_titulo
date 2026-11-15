@@ -175,19 +175,19 @@ def _contexto_resultado(request, conc) -> dict:
     filtro_cat = request.GET.get("categoria", "")
     filtro_local = request.GET.get("local", "")
 
-    registros, categorias, locales = [], [], []
+    # Sin filtro de categoría se muestran dos tablas: fallas (las que cuenta la pestaña) y avisos aparte.
+    registros, fallas, avisos, categorias, locales = [], [], [], [], []
     capitulo = datos["capitulos"].get(vista)
     if capitulo:
         todos = capitulo["fallas"] + capitulo["avisos"] + capitulo["conciliados"]
         categorias = [(k, cat.ETIQUETA[k], sum(1 for v in todos if v.categoria == k))
                       for k in cat.ORDEN_CATEGORIAS if any(v.categoria == k for v in todos)]
         locales = sorted({v.local for v in todos})
+        del_local = (lambda vs: [v for v in vs if v.local == filtro_local]) if filtro_local else list
         if filtro_cat:
-            registros = [v for v in todos if v.categoria == filtro_cat]
+            registros = del_local([v for v in todos if v.categoria == filtro_cat])
         else:
-            registros = capitulo["fallas"] + capitulo["avisos"]
-        if filtro_local:
-            registros = [v for v in registros if v.local == filtro_local]
+            fallas, avisos = del_local(capitulo["fallas"]), del_local(capitulo["avisos"])
 
     pestanas = [{"clave": "resumen", "nombre": "Resumen", "n": None}]
     for m in cat.MEDIOS:
@@ -197,6 +197,7 @@ def _contexto_resultado(request, conc) -> dict:
 
     return {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
+        "fallas": fallas, "avisos": avisos,
         "categorias": categorias, "locales": locales, "filtro_cat": filtro_cat, "filtro_local": filtro_local,
         "pestanas": pestanas,
         "fallas_todas": sorted((v for m in cat.MEDIOS for v in datos["capitulos"][m]["fallas"]),
@@ -275,6 +276,21 @@ def revisar_pendiente(request, pk):
         pendiente.save(update_fields=["revisado", "observacion"])
         messages.success(request, "Observación guardada.")
     return redirect(_volver_seguro(request, reverse("conciliacion:pendientes")))
+
+
+@login_required
+@require_POST
+def limpiar_base(request):
+    """Borra las conciliaciones y sus datos (solo superusuario, confirmando con la palabra LIMPIAR)."""
+    if not request.user.is_superuser:
+        messages.error(request, "Solo un administrador puede limpiar la base de datos.")
+    elif request.POST.get("confirmacion", "").strip().upper() != "LIMPIAR":
+        messages.warning(request, "No se limpió la base: debes escribir LIMPIAR para confirmar.")
+    else:
+        n = servicio.limpiar_base()
+        messages.success(request, f"Base de datos limpia: se borraron {n} conciliaciones con sus archivos, pagos "
+                                  "del bordero y pendientes. Los parámetros se conservan.")
+    return redirect("conciliacion:inicio")
 
 
 @login_required
