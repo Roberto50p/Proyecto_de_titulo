@@ -9,7 +9,7 @@
 <section class="n-bloque">
   <h1>Conciliación CLP</h1>
   {% if conc %}<p class="n-periodo">{{ conc.etiqueta }}</p>{% endif %}
-  <p class="n-ayuda">Sube el bordero, la cartola y los reportes Transbank (.xlsx o .xls). Puedes elegir todos los archivo a la vez.</p>
+  <p class="n-ayuda">Sube el bordero, la cartola y los reportes Transbank (.xlsx o .xls). Puedes agregarlos de a uno o desde distintas carpetas: se van sumando hasta que presiones Cargar.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="n-zona-carga">

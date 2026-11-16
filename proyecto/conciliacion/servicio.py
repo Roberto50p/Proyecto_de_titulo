@@ -6,6 +6,7 @@ import shutil
 import tempfile
 from collections import Counter, defaultdict
 from contextlib import contextmanager
+from functools import lru_cache
 
 import pandas as pd
 from django.db import transaction

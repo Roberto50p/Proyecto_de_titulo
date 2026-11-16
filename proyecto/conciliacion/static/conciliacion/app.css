@@ -92,6 +92,11 @@ body { margin: 0; font-family: var(--n-fuente); color: var(--n-tinta); backgroun
   border: 2px dashed var(--n-linea); border-radius: var(--n-radio); background: var(--n-fondo);
 }
 .n-acciones { display: flex; justify-content: flex-end; margin-top: 1rem; }
+.n-zona-carga.arrastrando { border-color: var(--n-tinta-suave); background: var(--n-papel); }
+.lista-archivos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.lista-archivos li { display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .3rem .5rem; border: 1px solid var(--n-linea); border-radius: var(--n-radio); background: var(--n-papel); }
+.lista-archivos .boton { min-height: 30px; padding: .2rem .75rem; font-size: .88rem; }
 
 .n-mensajes { display: flex; flex-direction: column; gap: .5rem; }
 .n-mensaje { margin: 0; padding: .6rem .9rem; border-radius: var(--n-radio); background: var(--n-papel); border: 1px solid var(--n-linea); }
