@@ -1,10 +1,13 @@
 """Servicio que lee los archivos de una conciliación, ejecuta el motor y guarda el resultado."""
 
 import hashlib
+import os
 from collections import Counter, defaultdict
+from functools import lru_cache
 
 import pandas as pd
 from django.db import transaction
+from django.db.models import Max, Min
 from django.utils import timezone
 
 from .lectores.bordero import leer_bordero
@@ -140,11 +143,23 @@ def validar(conc: Conciliacion, choques: dict | None = None) -> list[str]:
     return errores
 
 
+@lru_cache(maxsize=16)
+def _ventas_tbk(ruta: str, _version: tuple):
+    """Ventas de un archivo Transbank, leídas una sola vez por página. `_version` (fecha de modificación y tamaño)
+    evita usar una lectura vieja si se reemplaza un archivo con el mismo nombre."""
+    return leer_transbank(ruta).ventas
+
+
+def ventas_de(ac: ArchivoCargado):
+    st = os.stat(ac.archivo.path)
+    return _ventas_tbk(ac.archivo.path, (st.st_mtime_ns, st.st_size))
+
+
 def _ventas_sin_bordero(a: ArchivoCargado, borderos: list[tuple]) -> list[str]:
     """Avisos por cada día de venta del archivo Transbank que ningún bordero cubre (el crédito se abona días después
     de la venta, así que su archivo suele traer ventas anteriores al bordero). Las cuotas 2 y 3 se excluyen: su venta
     es de meses anteriores y se siguen como cuota."""
-    ventas = leer_transbank(a.archivo.path).ventas
+    ventas = ventas_de(a)
     por_dia = Counter()
     for f in ventas.to_dict("records"):
         cuota = f["cuota_num"]
@@ -190,7 +205,7 @@ def _clave_venta_unica(medio, codigo_norm, cuota_num, fecha_venta, monto_origina
 
 
 def _claves_ventas(ac: ArchivoCargado) -> set[tuple]:
-    ventas = leer_transbank(ac.archivo.path).ventas
+    ventas = ventas_de(ac)
     return {_clave_venta_unica(f["medio"], f["codigo_norm"], f["cuota_num"], f["fecha_venta"], f["monto_original"])
             for f in ventas.to_dict("records") if f["tipo_movimiento"].lower() == "venta" and f["codigo_norm"]}
 
@@ -471,6 +486,12 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         **_observacion(conc, "abonos", _clave_abono(r["medio"], r["fecha_abono"])),
     ) for r in resultados_abono])
 
+    # El bordero puede traer meses enteros: solo cuentan los pagos del período de las ventas Transbank.
+    desde, hasta = periodo_ventas(conc)
+    if desde:
+        pagos_del_mes = set(PagoBordero.objects.filter(id__in=pagos_del_mes, fecha__range=(desde, hasta))
+                            .values_list("id", flat=True))
+
     # Pagos del bordero de esta conciliación que siguen sin abono → pendientes.
     sin_abono = PagoBordero.objects.filter(id__in=pagos_del_mes, conciliacion__isnull=True, invalido=False,
                                            pendiente__isnull=True)
@@ -487,6 +508,13 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     conc.procesada_en = timezone.now()
     conc.save()
     return conc
+
+
+def periodo_ventas(conc: Conciliacion) -> tuple:
+    """Primera y última fecha de venta Transbank de la conciliación (sin cuotas 2 y 3: son ventas de meses atrás)."""
+    r = (conc.ventas.filter(es_venta=True).exclude(cuota_num__gt=1)
+         .aggregate(desde=Min("fecha_venta"), hasta=Max("fecha_venta")))
+    return r["desde"], r["hasta"]
 
 
 def _cuotas_anteriores(conc: Conciliacion, ventas: list[VentaTransbank]) -> None:

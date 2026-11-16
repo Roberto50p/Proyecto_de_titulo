@@ -9,7 +9,7 @@ from conciliacion.lectores.comunes import (
     parse_fecha_dmy,
     parse_fecha_es,
 )
-from conciliacion.lectores.transbank import leer_transbank
+from conciliacion.lectores.transbank import dia_sin_anio, leer_transbank
 
 
 def test_normalizar_codigo():
@@ -24,6 +24,13 @@ def test_parse_fechas():
     assert parse_fecha_es("07 septiembre 2026") == date(2026, 9, 7)
     assert parse_fecha_es("04 julio 2026") == date(2026, 7, 4)
     assert parse_fecha_dmy("04/09/2026") == date(2026, 9, 4)
+
+
+def test_dia_de_abono_sin_anio():
+    # Reporte descargado el 04/11 con abono del 02/11: la fecha de abono es la del 02/11.
+    assert dia_sin_anio("02 noviembre", date(2026, 11, 4)) == date(2026, 11, 2)
+    assert dia_sin_anio("31 diciembre", date(2027, 1, 2)) == date(2026, 12, 31)
+    assert dia_sin_anio("", date(2026, 11, 4)) is None
 
 
 def test_lee_debito_real(datos_reales):

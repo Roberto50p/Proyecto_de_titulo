@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from ..models import ArchivoCargado, Conciliacion, PagoBordero, Pendiente
 from ..motor import categorias as cat
-from ..servicio import cartola_sin_archivo, utilizables
+from ..servicio import cartola_sin_archivo, periodo_ventas, utilizables
 
 EMPRESA = "HOTELERA SAN FRANCISCO S.A."
 DEPARTAMENTO = "Depto. Adm. y Finanzas"
@@ -23,6 +23,15 @@ def pendientes_abiertos_al_cierre(conc: Conciliacion):
     si ya se cerraron, fue en una posterior. Así el reporte no cambia al procesar las siguientes."""
     return (Pendiente.objects.filter(origen_id__lte=conc.id).filter(Q(abierto=True) | Q(cierre_id__gt=conc.id))
             .select_related("pago", "origen").order_by("pago__fecha", "pago__hora"))
+
+
+def _invalidos_del_periodo(conc: Conciliacion) -> list:
+    """Reversas del bordero dentro del período de las ventas Transbank (no todo el histórico del bordero)."""
+    invalidos = PagoBordero.objects.filter(archivos__conciliacion=conc, invalido=True)
+    desde, hasta = periodo_ventas(conc)
+    if desde:
+        invalidos = invalidos.filter(fecha__range=(desde, hasta))
+    return list(invalidos.distinct())
 
 
 def armar(conc: Conciliacion) -> dict:
@@ -77,7 +86,7 @@ def armar(conc: Conciliacion) -> dict:
         "n_pendientes_cerrados": resumen.get("n_pendientes_cerrados", 0),
         "parametros": conc.parametros,
         "archivos": list(conc.archivos.all()),
-        "invalidos_bordero": list(PagoBordero.objects.filter(archivos__conciliacion=conc, invalido=True).distinct()),
+        "invalidos_bordero": _invalidos_del_periodo(conc),
         "cartola_sin_archivo": cartola_sin_archivo(conc),
         "cuadra": all(r.get("cuadratura", 0) == 0 for r in resumen_medios),
     }

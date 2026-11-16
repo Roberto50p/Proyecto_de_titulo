@@ -1,7 +1,13 @@
 from conciliacion.models import PagoBordero, Pendiente
 from datetime import date
 
-from conciliacion.servicio import procesar, validar
+from conciliacion.servicio import periodo_ventas, procesar, validar
+
+
+def test_pendientes_solo_del_periodo_de_ventas(septiembre_procesado):
+    desde, hasta = periodo_ventas(septiembre_procesado)
+    fechas = [p.pago.fecha for p in septiembre_procesado.pendientes.select_related("pago")]
+    assert fechas and all(desde <= f <= hasta for f in fechas)
 
 
 def test_bordero_traslapado_no_duplica(crear_conciliacion):

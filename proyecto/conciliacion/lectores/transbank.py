@@ -1,11 +1,13 @@
 """Lector del reporte Transbank "Abonos por día" (débito, crédito, prepago o todos los medios de pago)."""
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
 import pandas as pd
 
 from .comunes import (
+    MESES,
     ArchivoNoReconocido,
     a_entero,
     buscar_celda,
@@ -86,6 +88,16 @@ def _cuota(valor) -> tuple[int | None, int | None]:
     return None, None
 
 
+def dia_sin_anio(valor, consulta: date) -> date | None:
+    """'02 noviembre' (Día desde/hasta, sin año) -> fecha del año de la consulta, o del anterior si quedaría después
+    de ella (abono del 31 de diciembre consultado en enero)."""
+    m = re.match(r"(\d{1,2})\s+([a-z]+)", clave(valor))
+    if not m or m.group(2) not in MESES:
+        return None
+    dia = date(consulta.year, MESES[m.group(2)], int(m.group(1)))
+    return dia if dia <= consulta else date(consulta.year - 1, dia.month, dia.day)
+
+
 def _valor_bajo(hoja, etiqueta):
     pos = buscar_celda(hoja, etiqueta)
     if pos is None:
@@ -111,6 +123,11 @@ def leer_transbank(archivo) -> ArchivoTransbank:
     if not fechas:
         raise ArchivoNoReconocido("No se encontró la fecha de abono (Periodo de consulta).")
     fecha_abono, fecha_hasta = min(fechas), max(fechas)
+    # "Periodo de consulta" es el día en que se descargó el reporte; el abono está en "Día desde/hasta".
+    desde, hasta = (dia_sin_anio(valor_a_la_derecha(hoja, *p), fecha_hasta) if (p := buscar_celda(hoja, e)) else None
+                    for e in ("Día desde", "Día hasta"))
+    if desde and hasta:
+        fecha_abono, fecha_hasta = desde, hasta
 
     fila_enc, _ = buscar_celda(hoja, "Monto original de venta")
     resumen = {k: 0 for k in set(ETIQUETAS_RESUMEN.values())}
