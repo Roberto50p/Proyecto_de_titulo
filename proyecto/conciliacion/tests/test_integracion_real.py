@@ -43,8 +43,7 @@ def test_abonos_y_cuadratura(septiembre_procesado):
     assert medios["PREPAGO"]["n_falla"] == 1
 
 
-def test_pendientes_del_bordero(septiembre_procesado):
+def test_reversas_del_bordero(septiembre_procesado):
     conc = septiembre_procesado
-    assert conc.resumen["n_pendientes"] == 123
     assert conc.resumen["n_invalidos_bordero"] == 1
-    assert conc.pendientes.filter(abierto=True).count() == 123
+    assert not conc.pendientes.exists()

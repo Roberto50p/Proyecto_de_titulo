@@ -48,7 +48,7 @@ GRAVEDAD = {OPERACION: 1, DATO: 2, PENDIENTE: 3, AVISO: 4, "OK": 5}
 
 # Orden de las filas de la matriz y de los listados.
 ORDEN_CATEGORIAS = [DIF_MONTO, SIN_BORDERO, ABONO_CARTOLA, DIGITACION, DATO_INVALIDO,
-                    SIN_ABONO, MEDIO_DISTINTO, CUOTA, FUERA_PERIODO, OK]
+                    MEDIO_DISTINTO, CUOTA, FUERA_PERIODO, OK]
 CATEGORIAS_FALLA = {c for c, t in TIPO.items() if t in (OPERACION, DATO)}
 
 

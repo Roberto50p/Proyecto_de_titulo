@@ -44,11 +44,11 @@ def media_temporal(settings, tmp_path):
     return settings.MEDIA_ROOT
 
 
-def _crear(carpeta, anio, mes, nombres):
+def _crear(carpeta, nombres):
     from conciliacion.models import ArchivoCargado, Conciliacion
     from conciliacion.servicio import leer_archivo, sha256_de
 
-    conc = Conciliacion.objects.create(anio=anio, mes=mes)
+    conc = Conciliacion.objects.create()
     for nombre in nombres:
         with open(carpeta / nombre, "rb") as f:
             archivo = File(f, name=nombre)
@@ -63,8 +63,8 @@ def _crear(carpeta, anio, mes, nombres):
 def crear_conciliacion(db, datos_reales, media_temporal):
     """Crea una conciliación con archivos reales ya leídos (sin procesar)."""
 
-    def crear(anio=2026, mes=9, nombres=ARCHIVOS_SEPTIEMBRE):
-        return _crear(datos_reales, anio, mes, nombres)
+    def crear(nombres=ARCHIVOS_SEPTIEMBRE):
+        return _crear(datos_reales, nombres)
 
     return crear
 
@@ -72,7 +72,7 @@ def crear_conciliacion(db, datos_reales, media_temporal):
 @pytest.fixture
 def octubre_cargado(db, datos_octubre, media_temporal):
     """Conciliación de octubre con los archivos reales leídos (sin procesar)."""
-    return _crear(datos_octubre, 2026, 10, ARCHIVOS_OCTUBRE)
+    return _crear(datos_octubre, ARCHIVOS_OCTUBRE)
 
 
 @pytest.fixture

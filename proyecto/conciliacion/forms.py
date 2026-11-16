@@ -1,20 +1,7 @@
 from django import forms
-from django.utils import timezone
 
-from .models import MESES, ParametrosSistema
+from .models import ParametrosSistema
 from .motor.parametros import leer_reglas_medio
-
-
-class MesForm(forms.Form):
-    mes = forms.TypedChoiceField(label="Mes de abono", coerce=int,
-                                 choices=[(i, nombre) for i, nombre in enumerate(MESES, 1)])
-    anio = forms.IntegerField(label="Año", min_value=2020, max_value=2100)
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        hoy = timezone.localdate()
-        self.fields["mes"].initial = hoy.month
-        self.fields["anio"].initial = hoy.year
 
 
 class ParametrosForm(forms.ModelForm):

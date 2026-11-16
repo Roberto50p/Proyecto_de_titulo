@@ -29,7 +29,7 @@ def url(nombre, conc):
 
 @pytest.fixture
 def septiembre(cliente, datos_reales):
-    cliente.post(reverse("conciliacion:nueva"), {"anio": 2026, "mes": 9})
+    cliente.post(reverse("conciliacion:nueva"))
     conc = Conciliacion.objects.get()
     cliente.post(url("archivos", conc), subir(datos_reales, *ARCHIVOS_SEPTIEMBRE))
     cliente.post(url("procesar", conc))

@@ -3,36 +3,73 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block titulo %}Conciliación{% endblock %} · Hotel Plaza San Francisco</title>
-  <link rel="stylesheet" href="{% static 'conciliacion/app.css' %}">
+  <title>{% block titulo %}Inicio{% endblock %} · Sistema de conciliación financiera</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.min.css">
+  {# shortcut: ?v= se sube a mano al cambiar app.css para saltar la caché; usar ManifestStaticFilesStorage en producción #}
+  <link rel="stylesheet" href="{% static 'conciliacion/app.css' %}?v=8">
   <script src="{% static 'conciliacion/archivos.js' %}" defer></script>
 </head>
 <body>
 {% block cuerpo %}
-<div class="app">
-  <aside class="lateral" aria-label="Menú principal">
-    <a class="marca" href="{% url 'conciliacion:inicio' %}">
-      <span class="marca-nombre">Conciliación</span>
-      <span class="marca-sub">Hotel Plaza San Francisco</span>
+<div class="n-app">
+  <aside class="n-lateral" id="n-lateral" aria-label="Menú principal">
+    <div class="n-lateral-cabecera">
+    <a class="n-marca" href="{% url 'conciliacion:inicio' %}">
+      {# LOGO: guarda la imagen en conciliacion/static/conciliacion/img/logo.webp #}
+      <span class="n-logo">
+        <img src="{% static 'conciliacion/img/logo.webp' %}" alt="" onerror="this.remove()">
+      </span>
+      <span class="n-marca-texto">
+        <span class="n-titulo">Sistema de conciliación financiera</span>
+        <span class="n-subtitulo">Hotel Plaza San Francisco</span>
+      </span>
     </a>
-    <nav>
+    <button type="button" class="n-colapsar" aria-controls="n-lateral" aria-expanded="true" aria-label="Ocultar menú" title="Ocultar menú"><i class="bi bi-layout-sidebar" aria-hidden="true"></i></button>
+    </div>
+    <nav class="n-menu">
       {% with ruta=request.resolver_match.url_name %}
-      <a href="{% url 'conciliacion:nueva' %}" class="{% if ruta == 'nueva' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}">Nueva conciliación</a>
-      <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}">Conciliaciones</a>
-      <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}">Pendientes abiertos</a>
+      <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'clp' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Nueva conciliación</a>
+      <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}"><i class="bi bi-clock-history" aria-hidden="true"></i>Historial</a>
       <a href="{% url 'PR' %}" class="{% if ruta == 'PR' %}activo{% endif %}">Conciliación en US$</a>
-      <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}">Parámetros</a>
+      {# Sin acción por ahora #}
+      <button type="button" title="Próximamente">Resumen última conciliación</button>
+      <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}"><i class="bi bi-code" aria-hidden="true"></i>Parámetros</a>
       {% endwith %}
+      {% if user.is_superuser %}
+      <form method="post" action="{% url 'conciliacion:limpiar_base' %}" class="n-limpiar"
+            onsubmit="var r = prompt('Se borrarán TODAS las conciliaciones, archivos, pagos del bordero y pendientes. Los parámetros se conservan.\n\nEscribe LIMPIAR para confirmar:'); if (r === null) return false; this.confirmacion.value = r; return true;">
+        {% csrf_token %}<input type="hidden" name="confirmacion">
+        <button type="submit">Limpiar base de datos</button>
+      </form>
+      {% endif %}
     </nav>
-    <div class="usuario">
+    <div class="n-usuario">
       <span>{{ user.get_full_name|default:user.username }}</span>
-      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" class="enlace">Cerrar sesión</button></form>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
     </div>
   </aside>
-  <main class="contenido">
+  <script>
+    // Inline y justo después del menú: aplica el estado guardado antes de pintar, sin parpadeo entre páginas.
+    (function () {
+      var app = document.querySelector(".n-app"), boton = app.querySelector(".n-colapsar");
+      function aplicar(colapsado) {
+        app.classList.toggle("colapsado", colapsado);
+        boton.setAttribute("aria-expanded", String(!colapsado));
+        boton.title = colapsado ? "Mostrar menú" : "Ocultar menú";
+        boton.setAttribute("aria-label", boton.title);
+      }
+      try { aplicar(localStorage.getItem("menuColapsado") === "1"); } catch (e) {}
+      boton.addEventListener("click", function () {
+        var colapsado = !app.classList.contains("colapsado");
+        aplicar(colapsado);
+        try { localStorage.setItem("menuColapsado", colapsado ? "1" : "0"); } catch (e) {}
+      });
+    })();
+  </script>
+  <main class="n-contenido">
     {% if messages %}
-      <div class="mensajes">
-        {% for m in messages %}<p class="mensaje mensaje-{{ m.tags }}" role="status">{{ m }}</p>{% endfor %}
+      <div class="n-mensajes">
+        {% for m in messages %}<p class="n-mensaje n-mensaje-{{ m.tags }}" role="status">{{ m }}</p>{% endfor %}
       </div>
     {% endif %}
     {% block contenido %}{% endblock %}

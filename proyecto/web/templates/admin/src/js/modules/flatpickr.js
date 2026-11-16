@@ -1,3 +1,4 @@
+/* --------------- ARCHIVO NO USADO ------------------- */
 // Usage: https://flatpickr.js.org/
 import flatpickr from "flatpickr";
 

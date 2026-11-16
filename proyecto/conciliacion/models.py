@@ -1,12 +1,12 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Max, Min, Q
+from django.utils import timezone
 
 from .lectores.comunes import clave
 from .motor import categorias as cat
 from .motor.parametros import REGLAS_MEDIO_CARTOLA_INICIALES, escribir_reglas_medio
 
-MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto",
-         "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 MEDIO_CHOICES = [(m, cat.ETIQUETA_MEDIO[m]) for m in cat.MEDIOS]
 CATEGORIA_CHOICES = [(k, v) for k, v in cat.ETIQUETA.items()]
 
@@ -51,8 +51,6 @@ class Conciliacion(models.Model):
     BORRADOR, PROCESADA = "BORRADOR", "PROCESADA"
     ESTADOS = [(BORRADOR, "Borrador"), (PROCESADA, "Procesada")]
 
-    anio = models.PositiveSmallIntegerField("Año")
-    mes = models.PositiveSmallIntegerField()
     estado = models.CharField(max_length=10, choices=ESTADOS, default=BORRADOR)
     parametros = models.JSONField(default=dict, blank=True)
     resumen = models.JSONField(default=dict, blank=True)
@@ -64,14 +62,31 @@ class Conciliacion(models.Model):
     observaciones = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        unique_together = [("anio", "mes")]
-        ordering = ["-anio", "-mes"]
+        ordering = ["-id"]
         verbose_name = "conciliación"
         verbose_name_plural = "conciliaciones"
 
     @property
     def etiqueta(self) -> str:
-        return f"{MESES[self.mes - 1]} {self.anio}"
+        """Nombre visible según el período de abono de sus archivos Transbank: "Conciliación del 03/11/2026" o
+        "Conciliación del 01/11/2026 al 05/11/2026". Si otra conciliación tiene el mismo período se agrega la fecha
+        de creación para distinguirlas. Usa archivos.all() para aprovechar prefetch_related."""
+        dias = sorted({a.fecha_abono for a in self.archivos.all()
+                       if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and not a.error})
+        if not dias:
+            return "Conciliación sin abonos cargados"
+        desde, hasta = dias[0], dias[-1]
+        nombre = f"Conciliación del {desde:%d/%m/%Y}" + (f" al {hasta:%d/%m/%Y}" if desde != hasta else "")
+        if self._periodo_repetido(desde, hasta):
+            nombre += f" (creada el {timezone.localtime(self.creada_en):%d/%m %H:%M})"
+        return nombre
+
+    def _periodo_repetido(self, desde, hasta) -> bool:
+        validos = Q(archivos__tipo=ArchivoCargado.TRANSBANK, archivos__error="", archivos__fecha_abono__isnull=False)
+        return (Conciliacion.objects.exclude(pk=self.pk)
+                .annotate(p_desde=Min("archivos__fecha_abono", filter=validos),
+                          p_hasta=Max("archivos__fecha_abono", filter=validos))
+                .filter(p_desde=desde, p_hasta=hasta).exists())
 
     def __str__(self):
         return self.etiqueta

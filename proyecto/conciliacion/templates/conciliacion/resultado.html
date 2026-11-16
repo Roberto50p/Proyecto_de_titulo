@@ -1,25 +1,30 @@
 {% extends "conciliacion/base.html" %}
-{% load conciliacion_extras %}
+{% load static conciliacion_extras %}
 {% block titulo %}{{ conc.etiqueta }}{% endblock %}
 {% block contenido %}
-<header class="cabecera">
-  <div>
-    <h1>Conciliación {{ conc.etiqueta }}</h1>
-    <p class="ayuda">Cierre por fecha de abono · {{ d.encabezado.cuenta }} · procesada {{ conc.procesada_en|date:"d/m/Y H:i" }}</p>
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
+
+<section class="n-bloque">
+  <div class="n-cabecera">
+    <div>
+      <h1>{{ conc.etiqueta }}</h1>
+      <p class="n-ayuda">Cierre por fecha de abono · {{ d.encabezado.cuenta }} · procesada {{ conc.procesada_en|date:"d/m/Y H:i" }}</p>
+    </div>
+    <div class="n-acciones n-acciones-cabecera">
+      <a class="boton boton-principal" href="{% url 'conciliacion:pdf' conc.pk %}">Descargar PDF</a>
+      <a class="boton" href="{% url 'conciliacion:excel' conc.pk %}">Descargar Excel</a>
+      <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Modificar archivos o conciliar de nuevo</a>
+    </div>
   </div>
-  <div class="acciones">
-    <a class="boton boton-principal" href="{% url 'conciliacion:pdf' conc.pk %}">Descargar PDF</a>
-    <a class="boton" href="{% url 'conciliacion:excel' conc.pk %}">Descargar Excel</a>
-    <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Modificar archivos o conciliar de nuevo</a>
-  </div>
-</header>
+</section>
 
 <dl class="indicadores">
   <div class="indicador"><dt>Abonado por Transbank</dt><dd>{{ d.total.abono_tbk|pesos }}</dd></div>
   <div class="indicador"><dt>Llegó a la cartola</dt><dd>{{ d.total.abono_cartola|pesos }}</dd></div>
   <div class="indicador {% if d.total.diferencial %}alerta{% else %}bien{% endif %}"><dt>Diferencial</dt><dd>{{ d.total.diferencial|pesos }}</dd></div>
-  <div class="indicador {% if d.total.n_falla %}alerta{% endif %}"><dt>Registros con falla</dt><dd>{{ d.total.n_falla|miles }} <small class="ayuda">de {{ d.total.n_ventas|miles }} ventas</small></dd></div>
-  <div class="indicador"><dt>Pendientes abiertos</dt><dd>{{ d.pendientes|length|miles }}</dd></div>
+  <div class="indicador {% if d.total.n_falla %}alerta{% endif %}"><dt>Registros con falla</dt><dd>{{ d.total.n_falla|miles }} <small class="n-ayuda">de {{ d.total.n_ventas|miles }} ventas</small></dd></div>
 </dl>
 
 <nav class="pestanas" aria-label="Secciones del resultado">
@@ -31,7 +36,7 @@
 </nav>
 
 {% if vista == "resumen" %}
-  <section class="bloque">
+  <section class="n-bloque">
     <h2>Resumen por medio de pago</h2>
     <div class="tabla-envoltura">
       <table>
@@ -50,15 +55,15 @@
         <tfoot><tr><td>Total</td><td class="num">{{ d.total.ventas|pesos }}</td><td class="num">{{ d.total.comision_iva|pesos }}</td><td class="num">{{ d.total.abono_tbk|pesos }}</td><td class="num">{{ d.total.abono_cartola|pesos }}</td><td class="num">{{ d.total.diferencial|pesos }}</td><td class="num">{{ d.total.n_ventas|miles }}</td><td class="num">{{ d.total.n_falla|miles }}</td></tr></tfoot>
       </table>
     </div>
-    <p class="{% if d.cuadra %}estado-ok{% else %}error{% endif %}">
+    <p class="n-nota {% if d.cuadra %}estado-ok{% else %}estado-error{% endif %}">
       {% if d.cuadra %}Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "Ventas Transbank".{% else %}La suma de las categorías no coincide con "Ventas Transbank" en algún medio de pago; revisa los archivos Transbank.{% endif %}
     </p>
   </section>
 
   {% if d.cartola_sin_archivo %}
-  <section class="bloque" role="alert">
-    <h2 class="error">Abonos de la cartola sin archivo Transbank ({{ d.cartola_sin_archivo|length }} · {{ conc.resumen.cartola_sin_archivo.monto|pesos }})</h2>
-    <p>Estos abonos de Transbank llegaron al banco en {{ conc.etiqueta }}, pero no se cargó su archivo "Abonos por día". Sus ventas no se pudieron verificar: descarga los archivos de esas fechas desde Transbank y agrégalos.</p>
+  <section class="n-bloque n-bloque-error" role="alert">
+    <h2>Abonos de la cartola sin archivo Transbank ({{ d.cartola_sin_archivo|length }} · {{ conc.resumen.cartola_sin_archivo.monto|pesos }})</h2>
+    <p class="n-ayuda">Estos abonos de Transbank llegaron al banco en los días de abono de esta conciliación, pero no se cargó su archivo "Abonos por día". Sus ventas no se pudieron verificar: descarga los archivos de esas fechas desde Transbank y agrégalos.</p>
     <div class="tabla-envoltura">
       <table>
         <thead><tr><th>Fecha</th><th>Descripción en la cartola</th><th>Medio probable</th><th class="num">Monto</th></tr></thead>
@@ -72,34 +77,34 @@
   </section>
   {% endif %}
 
-  <section class="bloque">
+  <section class="n-bloque">
     <h2>Qué revisar primero</h2>
-    <p class="ayuda">Ventas con falla de los tres medios, de la más grave a la menos grave.</p>
+    <p class="n-ayuda">Ventas con falla de los tres medios, de la más grave a la menos grave.</p>
     <div class="tabla-envoltura">
       <table>
         <thead><tr><th>Medio</th><th>Fecha</th><th>Código</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th>Categoría</th><th>Qué hacer</th></tr></thead>
         <tbody>
         {% for v in fallas_todas %}
-          <tr class="fila-medio-{{ v.medio }}">
+          <tr class="fila-medio-{{ v.medio }} fila-enlace">
             <td><span class="medio medio-{{ v.medio }}">{{ v.medio|medio }}</span></td>
             <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
-            <td><strong>{{ v.codigo_autorizacion }}</strong></td>
+            <td><a href="?vista={{ v.medio }}#v{{ v.pk }}" aria-label="Ver {{ v.codigo_autorizacion }} en {{ v.medio|medio }}"><strong>{{ v.codigo_autorizacion }}</strong></a></td>
             <td class="num">{{ v.monto_original|pesos }}</td>
             <td class="num">{{ v.monto_bordero|pesos }}</td>
             <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
             <td class="mensaje-celda">{{ v.mensaje }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7">No hay ventas con falla este mes.</td></tr>
+          <tr><td colspan="7">No hay ventas con falla en esta conciliación.</td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
   </section>
 
-  <section class="bloque">
+  <section class="n-bloque">
     <h2>Matriz de resultados</h2>
-    <p class="ayuda">Operación: revisar con Transbank o el banco. Dato: corregir en el sistema del hotel. Aviso y Pendiente no son fallas.</p>
+    <p class="n-ayuda">Operación: revisar con Transbank o el banco. Dato: corregir en el sistema del hotel. Aviso no es falla.</p>
     <div class="tabla-envoltura">
       <table class="matriz">
         <thead><tr><th>Categoría</th><th>Tipo</th>{% for r in d.resumen_medios %}<th class="num"><span class="medio medio-{{ r.medio }}">{{ r.etiqueta }}</span></th>{% endfor %}<th class="num">Total</th><th class="num">Monto</th></tr></thead>
@@ -116,87 +121,55 @@
         </tbody>
       </table>
     </div>
-    <p class="ayuda">Red Compra (RCO) puede ser débito o prepago; sus pendientes se muestran bajo Débito.</p>
-  </section>
-
-{% elif vista == "pendientes" %}
-  <section class="bloque">
-    <h2>Pendientes abiertos al cierre</h2>
-    <p class="ayuda">Pagos con tarjeta del bordero sin abono de Transbank. Se revisan solos en la conciliación del mes siguiente. Cerrados este mes: {{ d.n_pendientes_cerrados }}.</p>
-    <p><a href="{% url 'conciliacion:pendientes' %}">Ver y comentar todos los pendientes abiertos</a></p>
-    <div class="tabla-envoltura">
-      <table>
-        <thead><tr><th>Fecha</th><th>Cod. Deb.</th><th>Medio</th><th>Documento</th><th class="num">Monto</th><th>Cuenta</th><th>Mes de origen</th><th>Observación</th></tr></thead>
-        <tbody>
-        {% for p in d.pendientes %}
-          <tr class="fila-medio-{{ p.medio }}">
-            <td>{{ p.pago.fecha|date:"d/m/Y" }}</td><td>{{ p.pago.cod_deb }}</td>
-            <td><span class="medio medio-{{ p.medio }}">{{ p.medio|medio }}</span></td>
-            <td>{{ p.pago.documento }}</td><td class="num">{{ p.pago.valor|pesos }}</td>
-            <td>{{ p.pago.cuenta }}</td><td>{{ p.origen.etiqueta }}</td><td>{{ p.observacion }}</td>
-          </tr>
-        {% empty %}<tr><td colspan="8">No hay pendientes abiertos.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
   </section>
 
 {% else %}
-  <section class="bloque">
+  <section class="n-bloque">
     <h2><span class="medio medio-{{ vista }}">{{ capitulo.etiqueta }}</span></h2>
     <p>{{ capitulo.resumen.n_ventas|miles }} ventas · {{ capitulo.resumen.n_falla|miles }} con falla · ventas Transbank {{ capitulo.resumen.ventas|pesos }} · comisión + IVA {{ capitulo.resumen.comision_iva|pesos }}</p>
     {% for a in capitulo.abonos %}
-      <p class="{% if a.categoria == 'OK' %}estado-ok{% else %}estado-error{% endif %}">Abono del {{ a.fecha_abono|date:"d/m/Y" }} por {{ a.total_abono|pesos }}: {% if a.categoria == 'OK' %}cuadra con la cartola ({{ a.cartola_fecha|date:"d/m/Y" }}).{% else %}no cuadra con la cartola. <span class="ayuda">{{ a.mensaje }}</span>{% endif %}</p>
+      <p class="{% if a.categoria == 'OK' %}estado-ok{% else %}estado-error{% endif %}">Abono del {{ a.fecha_abono|date:"d/m/Y" }} por {{ a.total_abono|pesos }}: {% if a.categoria == 'OK' %}cuadra con la cartola ({{ a.cartola_fecha|date:"d/m/Y" }}).{% else %}no cuadra con la cartola. <span class="n-ayuda">{{ a.mensaje }}</span>{% endif %}</p>
     {% endfor %}
   </section>
 
-  <section class="bloque">
-  <h2>Ventas</h2>
-  <form method="get" class="filtros">
-    <input type="hidden" name="vista" value="{{ vista }}">
-    <div class="campo">
-      <label for="categoria">Categoría</label>
-      <select id="categoria" name="categoria">
-        <option value="">Fallas y avisos</option>
-        {% for k, nombre, n in categorias %}<option value="{{ k }}"{% if k == filtro_cat %} selected{% endif %}>{{ nombre }} ({{ n }})</option>{% endfor %}
-      </select>
-    </div>
-    <div class="campo">
-      <label for="local">Local</label>
-      <select id="local" name="local">
-        <option value="">Todos</option>
-        {% for l in locales %}<option value="{{ l }}"{% if l == filtro_local %} selected{% endif %}>{{ l }}</option>{% endfor %}
-      </select>
-    </div>
-    <button type="submit" class="boton">Filtrar</button>
-  </form>
+  <section class="n-bloque">
+    <h2>Ventas</h2>
+    <form method="get" class="filtros">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <div class="campo">
+        <label for="categoria">Categoría</label>
+        <select id="categoria" name="categoria">
+          <option value="">Fallas y avisos (por separado)</option>
+          {% for k, nombre, n in categorias %}<option value="{{ k }}"{% if k == filtro_cat %} selected{% endif %}>{{ nombre }} ({{ n }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="local">Local</label>
+        <select id="local" name="local">
+          <option value="">Todos</option>
+          {% for l in locales %}<option value="{{ l }}"{% if l == filtro_local %} selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="boton">Filtrar</button>
+    </form>
 
-  <div class="tabla-envoltura">
-    <table>
-      <thead><tr><th>Fecha</th><th>Código</th><th>Local</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th class="num">Diferencia</th><th>Categoría</th><th>Qué hacer</th><th>Revisión</th></tr></thead>
-      <tbody>
-      {% for v in registros %}
-        <tr id="v{{ v.pk }}">
-          <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
-          <td><strong>{{ v.codigo_autorizacion }}</strong>{% if v.codigo_sugerido %}<br><span class="ayuda">bordero: {{ v.codigo_sugerido }}</span>{% endif %}{% if v.cuota %}<br><span class="ayuda">cuota {{ v.cuota }}</span>{% endif %}</td>
-          <td>{{ v.local }}</td>
-          <td class="num">{{ v.monto_original|pesos }}</td>
-          <td class="num">{{ v.monto_bordero|pesos }}</td>
-          <td class="num">{{ v.diferencia|pesos }}</td>
-          <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
-          <td class="mensaje-celda">{{ v.mensaje }}{% if v.nota %}<br><em>{{ v.nota }}</em>{% endif %}</td>
-          <td>{% include "conciliacion/_revisar_venta.html" %}</td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="9">No hay registros con este filtro.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    {% if filtro_cat %}
+      {% include "conciliacion/_tabla_ventas.html" with ventas=registros vacio="No hay registros con este filtro." %}
+    {% else %}
+      <h3 class="bloque-fallas">Fallas <span class="contador">{{ fallas|length }}</span></h3>
+      <p class="n-ayuda">Problemas que hay que resolver: son los que cuenta la pestaña.</p>
+      {% include "conciliacion/_tabla_ventas.html" with ventas=fallas vacio="No hay fallas en las ventas de este medio." %}
+
+      <details class="bloque-avisos"{% if not fallas %} open{% endif %}>
+        <summary><h3>Avisos <span class="contador contador-aviso">{{ avisos|length }}</span></h3></summary>
+        <p class="n-ayuda">No son errores: ventas que no se pudieron comparar (por ejemplo, de días que ningún bordero cargado cubre) o cuotas en seguimiento.</p>
+        {% include "conciliacion/_tabla_ventas.html" with ventas=avisos vacio="No hay avisos." %}
+      </details>
+    {% endif %}
   </section>
   {% if capitulo.otros %}
-    <section class="bloque">
-      <h3>Otros movimientos (no son ventas)</h3>
+    <section class="n-bloque">
+      <h2>Otros movimientos (no son ventas)</h2>
       <ul>{% for v in capitulo.otros %}<li>{{ v.fecha_venta|date:"d/m/Y" }} · {{ v.tipo_movimiento }} · {{ v.codigo_autorizacion }} · {{ v.monto_original|pesos }}</li>{% endfor %}</ul>
     </section>
   {% endif %}

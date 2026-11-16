@@ -1,4 +1,4 @@
-"""Reporte PDF (ReportLab): resumen, matriz, un capítulo por medio de pago, pendientes y parámetros."""
+"""Reporte PDF (ReportLab): resumen, matriz, un capítulo por medio de pago y parámetros."""
 
 from io import BytesIO
 
@@ -142,14 +142,12 @@ def _seccion_resumen(d, h):
     h += [Spacer(1, 3 * mm), Paragraph(texto, E["normal"]),
           Paragraph("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "
                     "Ventas Transbank." if d["cuadra"] else
-                    "<b>La suma de las categorías no coincide con Ventas Transbank en algún medio.</b>", E["normal"]),
-          Paragraph(f"Pendientes abiertos al cierre: {len(d['pendientes'])} · cerrados este mes: "
-                    f"{d['n_pendientes_cerrados']}.", E["normal"])]
+                    "<b>La suma de las categorías no coincide con Ventas Transbank en algún medio.</b>", E["normal"])]
     if d["cartola_sin_archivo"]:
         total = sum(m.abono for m in d["cartola_sin_archivo"])
         h += [Paragraph(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])} · "
                         f"{pesos(total)})", E["h3"]),
-              Paragraph("Llegaron al banco en el mes pero no se cargó su archivo 'Abonos por día'; sus ventas no "
+              Paragraph("Llegaron al banco en los días conciliados pero no se cargó su archivo 'Abonos por día'; sus ventas no "
                         "se pudieron verificar. Cargar los archivos de esas fechas.", E["suave"]),
               _tabla([["Fecha", "Descripción en la cartola", "Medio probable", "Monto"]] +
                      [[f"{m.fecha:%d/%m/%Y}", Paragraph(escape(m.descripcion), E["chico"]), m.medio_probable,
@@ -160,7 +158,7 @@ def _seccion_resumen(d, h):
 def _seccion_matriz(d, h):
     h.append(Paragraph("2. Matriz de resultados", E["h2"]))
     h.append(Paragraph("Cantidad de registros por categoría y medio de pago. Operación: revisar con Transbank o "
-                       "el banco. Dato: corregir en el sistema del hotel. Aviso y Pendiente: no son fallas.",
+                       "el banco. Dato: corregir en el sistema del hotel. Aviso: no es falla.",
                        E["suave"]))
     filas = [["Categoría", "Tipo"] + [cat.ETIQUETA_MEDIO[m] for m in cat.MEDIOS] + ["Total", "Monto total"]]
     extra = []
@@ -172,8 +170,6 @@ def _seccion_matriz(d, h):
         extra.append(("TEXTCOLOR", (j, 0), (j, 0), colors.HexColor(cat.COLOR_MEDIO[m])))
     h.append(_tabla(filas, [70 * mm, 24 * mm, 26 * mm, 26 * mm, 26 * mm, 24 * mm, 34 * mm],
                     numericas=range(2, 7), extra=extra))
-    h.append(Paragraph("Red Compra (RCO) puede ser débito o prepago; sus pendientes se muestran bajo Débito.",
-                       E["suave"]))
 
 
 def _tabla_ventas(ventas, con_mensaje=True):
@@ -222,7 +218,7 @@ def _seccion_capitulo(d, h, numero, medio):
             h.append(_tabla(filas, [24 * mm, 22 * mm, 50 * mm, 16 * mm, 30 * mm, 34 * mm, 50 * mm],
                             numericas=(4, 5)))
         else:
-            h.append(Paragraph("No hay ventas en cuotas en este mes.", E["suave"]))
+            h.append(Paragraph("No hay ventas en cuotas en esta conciliación.", E["suave"]))
     if cap["otros"]:
         h.append(Paragraph("Otros movimientos (no son ventas)", E["h3"]))
         h.append(_tabla([["Fecha", "Tipo de movimiento", "Código", "Monto"]] +
@@ -232,18 +228,7 @@ def _seccion_capitulo(d, h, numero, medio):
     h.append(Spacer(1, 4 * mm))
 
 
-def _seccion_pendientes(d, h):
-    h += [PageBreak(), Paragraph("6. Pendientes", E["h2"])]
-    h.append(Paragraph(f"Pagos con tarjeta del bordero sin abono de Transbank al cierre ({len(d['pendientes'])}). "
-                       "Se revisan automáticamente en la conciliación del mes siguiente.", E["suave"]))
-    if d["pendientes"]:
-        filas = [["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Cuenta", "Mes de origen", "Observación"]]
-        for p in d["pendientes"]:
-            filas.append([f"{p.pago.fecha:%d/%m/%Y}", p.pago.cod_deb, cat.ETIQUETA_MEDIO[p.medio],
-                          p.pago.documento, pesos(abs(p.pago.valor)), p.pago.cuenta, p.origen.etiqueta,
-                          Paragraph(escape(p.observacion), E["chico"])])
-        h.append(_tabla(filas, [22 * mm, 20 * mm, 20 * mm, 30 * mm, 26 * mm, 24 * mm, 30 * mm, 95 * mm],
-                        numericas=(4,)))
+def _seccion_invalidos(d, h):
     if d["invalidos_bordero"]:
         h.append(Paragraph("Datos inválidos del bordero (pagos con tarjeta con monto positivo)", E["h3"]))
         h.append(_tabla([["Fecha", "Cod. Deb.", "Documento", "Monto", "Descripción"]] +
@@ -254,7 +239,7 @@ def _seccion_pendientes(d, h):
 
 def _seccion_parametros(d, h):
     p = d["parametros"]
-    h.append(Paragraph("7. Parámetros y archivos", E["h2"]))
+    h.append(Paragraph("6. Parámetros y archivos", E["h2"]))
     filas = [["Parámetro", "Valor"],
              ["Tolerancia en pesos", pesos(p.get("tolerancia_clp"))],
              ["Similitud mínima de códigos", str(p.get("umbral_similitud"))],
@@ -291,7 +276,7 @@ def generar(conciliacion) -> bytes:
     _seccion_capitulo(d, h, 3, cat.DEBITO)
     _seccion_capitulo(d, h, 4, cat.CREDITO)
     _seccion_capitulo(d, h, 5, cat.PREPAGO)
-    _seccion_pendientes(d, h)
+    _seccion_invalidos(d, h)
     _seccion_parametros(d, h)
 
     pie = f"{d['encabezado']['empresa']} · {d['encabezado']['titulo']} · generado " \

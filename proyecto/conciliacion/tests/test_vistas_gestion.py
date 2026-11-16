@@ -17,25 +17,9 @@ def cliente(client, db, media_temporal):
 
 def test_lista_muestra_conciliaciones(cliente, septiembre_procesado):
     html = cliente.get(reverse("conciliacion:lista")).content.decode()
-    assert "Septiembre 2026" in html
+    assert septiembre_procesado.etiqueta in html
     assert reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) in html
     assert "$8.728.360" in html and ">14<" in html
-
-
-def test_pendientes_abiertos(cliente, septiembre_procesado):
-    html = cliente.get(reverse("conciliacion:pendientes")).content.decode()
-    pendiente = Pendiente.objects.filter(abierto=True).select_related("pago").first()
-    assert "123 pendientes abiertos" in html
-    assert pendiente.pago.documento in html and "Septiembre 2026" in html
-
-
-def test_comentar_pendiente(cliente, septiembre_procesado):
-    p = Pendiente.objects.first()
-    r = cliente.post(reverse("conciliacion:revisar_pendiente", args=[p.pk]),
-                     {"observacion": "Transbank lo abona el lunes", "revisado": "on"})
-    assert r.status_code == 302
-    p.refresh_from_db()
-    assert p.observacion == "Transbank lo abona el lunes" and p.revisado
 
 
 def test_guardar_parametros(cliente):
@@ -77,3 +61,28 @@ def test_revisar_venta_no_redirige_fuera(cliente, septiembre_procesado):
     r = cliente.post(reverse("conciliacion:revisar_venta", args=[v.pk]),
                      {"observacion": "x", "volver": "https://example.com/"})
     assert r.url == reverse("conciliacion:detalle", args=[septiembre_procesado.pk])
+
+
+def test_limpiar_base_borra_conciliaciones_y_conserva_parametros(client, septiembre_procesado):
+    from conciliacion.models import (ArchivoCargado, CoberturaBordero, Conciliacion, MovimientoCartola,
+                                     PagoBordero, ParametrosSistema)
+    rutas = [ac.archivo.path for ac in ArchivoCargado.objects.all()]
+    client.force_login(User.objects.create_superuser("jefe", password="clave-segura-123"))
+    assert "Limpiar base de datos" in client.get(reverse("conciliacion:inicio")).content.decode()
+    client.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "limpiar"})
+    for modelo in (Conciliacion, ArchivoCargado, PagoBordero, Pendiente, CoberturaBordero, MovimientoCartola):
+        assert not modelo.objects.exists()
+    assert ParametrosSistema.objects.exists() and EquivalenciaMedio.objects.exists()
+    import os
+    assert rutas and not any(os.path.exists(r) for r in rutas)
+
+
+def test_limpiar_base_exige_confirmacion_y_superusuario(cliente, septiembre_procesado):
+    from conciliacion.models import Conciliacion
+    assert "Limpiar base de datos" not in cliente.get(reverse("conciliacion:inicio")).content.decode()
+    cliente.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "LIMPIAR"})  # analista sin permiso
+    assert Conciliacion.objects.exists()
+    cliente.get(reverse("conciliacion:inicio"))
+    User.objects.filter(username="analista").update(is_superuser=True)
+    cliente.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "otra cosa"})
+    assert Conciliacion.objects.exists()

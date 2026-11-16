@@ -1,26 +1,20 @@
 from conciliacion.models import PagoBordero, Pendiente
-from conciliacion.servicio import procesar
+from datetime import date
+
+from conciliacion.servicio import procesar, validar
+
+
+def test_conciliacion_diaria_sin_pendientes(septiembre_procesado):
+    # Manda Transbank: los pagos del bordero sin venta no se guardan como pendientes.
+    assert not Pendiente.objects.exists()
+    assert septiembre_procesado.ventas.count() == 141
 
 
 def test_bordero_traslapado_no_duplica(crear_conciliacion):
-    procesar(crear_conciliacion(2026, 8, ["BORDERO 04-09 A 07-09.xlsx"]))
+    procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
     total = PagoBordero.objects.count()
-    procesar(crear_conciliacion(2026, 9, ["BORDERO 04-09 A 07-09.xlsx"]))
+    procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
     assert PagoBordero.objects.count() == total == 228
-
-
-def test_pendiente_se_cierra_mes_siguiente(crear_conciliacion):
-    agosto = procesar(crear_conciliacion(2026, 8, ["BORDERO 04-09 A 07-09.xlsx"]))
-    assert agosto.pendientes.filter(abierto=True).count() == 227
-
-    septiembre = procesar(crear_conciliacion())
-    venta = septiembre.ventas.get(codigo_autorizacion="003098")
-    assert venta.categoria == "OK" and "cierra pendiente de Agosto 2026" in venta.nota
-    assert Pendiente.objects.get(pago=venta.pago).cierre == septiembre
-    assert septiembre.resumen["n_pendientes_cerrados"] == 104
-    # En septiembre no se reabren como pendientes nuevos: ya estaban abiertos desde agosto.
-    assert septiembre.pendientes.count() == 0
-    assert Pendiente.objects.filter(abierto=True).count() == 123
 
 
 def test_reprocesar_conserva_observacion(septiembre_procesado):
@@ -37,30 +31,19 @@ def test_reprocesar_conserva_observacion(septiembre_procesado):
 
 # ---- Correcciones de la revisión final
 
-def test_reprocesar_mes_anterior_conserva_pendientes_cerrados(crear_conciliacion):
-    agosto = procesar(crear_conciliacion(2026, 8, ["BORDERO 04-09 A 07-09.xlsx"]))
-    septiembre = procesar(crear_conciliacion())
-    cerrado = Pendiente.objects.get(pago__documento_norm="3098")
-    cerrado.observacion = "Revisado con Transbank"
-    cerrado.save()
-    procesar(agosto)
-    cerrado = Pendiente.objects.get(pago__documento_norm="3098")
-    assert cerrado.cierre == septiembre and cerrado.observacion == "Revisado con Transbank"
-    assert Pendiente.objects.filter(cierre=septiembre).count() == 104
-
-
-def test_reporte_de_un_mes_no_cambia_al_procesar_el_siguiente(crear_conciliacion):
-    from conciliacion.reportes.datos import armar
-
-    agosto = procesar(crear_conciliacion(2026, 8, ["BORDERO 04-09 A 07-09.xlsx"]))
-    assert len(armar(agosto)["pendientes"]) == 227
-    procesar(crear_conciliacion())
-    assert len(armar(agosto)["pendientes"]) == 227
-
-
 def test_abonos_de_cartola_sin_archivo(septiembre_procesado):
+    from conciliacion.servicio import cartola_sin_archivo
+
+    lineas = cartola_sin_archivo(septiembre_procesado)
+    # Solo los días de abono cargados (08/09), no el mes completo.
+    assert all(m.fecha == date(2026, 9, 8) for m in lineas)
     sin_archivo = septiembre_procesado.resumen["cartola_sin_archivo"]
-    assert sin_archivo["n"] == 16 and sin_archivo["monto"] == 26_036_232
+    # Antes (mes completo) eran 16 líneas por $26.036.232; el 08 y 09/09 no hay abonos Transbank sin archivo.
+    assert sin_archivo == {"n": len(lineas), "monto": 0} and lineas == []
+
+
+def test_acepta_abono_de_cualquier_fecha(crear_conciliacion):
+    assert validar(crear_conciliacion()) == []
 
 
 def test_matriz_cuadra_con_ventas_transbank(septiembre_procesado):
@@ -90,7 +73,7 @@ def test_documento_corregido_en_bordero_no_crea_pendiente_falso(septiembre_proce
     corregido = tmp_path / "bordero corregido.xlsx"
     libro.save(corregido)
 
-    octubre = crear_conciliacion(2026, 10, [])
+    octubre = crear_conciliacion([])
     with open(corregido, "rb") as f:
         archivo = File(f, name=corregido.name)
         ac = ArchivoCargado(conciliacion=octubre, nombre=corregido.name, sha256=sha256_de(archivo))
@@ -102,3 +85,32 @@ def test_documento_corregido_en_bordero_no_crea_pendiente_falso(septiembre_proce
     pago = PagoBordero.objects.get(documento="F0FUAZ")
     assert pago.conciliacion == septiembre_procesado
     assert not octubre.pendientes.exists()
+
+
+def test_cartola_sin_archivo_solo_dias_de_abono(db):
+    from conciliacion.models import ArchivoCargado, Conciliacion, MovimientoCartola
+    from conciliacion.servicio import cartola_sin_archivo
+
+    conc = Conciliacion.objects.create(parametros={"dias_holgura": 1})
+    ArchivoCargado.objects.create(conciliacion=conc, tipo=ArchivoCargado.TRANSBANK, nombre="tbk.xlsx", sha256="a",
+                                  moneda="Pesos chilenos", fecha_abono=date(2026, 9, 8), archivo="tbk.xlsx")
+    for dia in (7, 8, 9, 10):
+        MovimientoCartola.objects.create(conciliacion=conc, fecha=date(2026, 9, dia), abono=1000, es_transbank=True)
+    # El 09/09 (día siguiente) es de la próxima conciliación diaria: no se marca aquí.
+    assert [m.fecha.day for m in cartola_sin_archivo(conc)] == [8]
+
+
+def test_cartola_sin_archivo_omite_lineas_conciliadas_en_otra(db):
+    from conciliacion.models import ArchivoCargado, Conciliacion, MovimientoCartola
+    from conciliacion.servicio import cartola_sin_archivo
+
+    otra = Conciliacion.objects.create()
+    MovimientoCartola.objects.create(conciliacion=otra, fecha=date(2026, 9, 8), descripcion="ABONO TBK", abono=500,
+                                     es_transbank=True, conciliado=True)
+    conc = Conciliacion.objects.create()
+    ArchivoCargado.objects.create(conciliacion=conc, tipo=ArchivoCargado.TRANSBANK, nombre="tbk.xlsx", sha256="a",
+                                  moneda="Pesos chilenos", fecha_abono=date(2026, 9, 8), archivo="tbk.xlsx")
+    for monto in (500, 700):
+        MovimientoCartola.objects.create(conciliacion=conc, fecha=date(2026, 9, 8), descripcion="ABONO TBK",
+                                         abono=monto, es_transbank=True)
+    assert [m.abono for m in cartola_sin_archivo(conc)] == [700]

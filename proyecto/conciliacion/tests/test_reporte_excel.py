@@ -4,7 +4,7 @@ from openpyxl import load_workbook
 
 from conciliacion.reportes.excel import generar
 
-HOJAS = ["Resumen", "Débito", "Crédito", "Cuotas", "Prepago", "Pendientes", "Conciliados", "Parámetros"]
+HOJAS = ["Resumen", "Débito", "Crédito", "Cuotas", "Prepago", "Conciliados", "Parámetros"]
 
 
 def filas_tabla(hoja, encabezado_inicial):
@@ -40,9 +40,8 @@ def test_excel_septiembre(septiembre_procesado):
     cuotas = filas_tabla(libro["Cuotas"], "Fecha venta")
     assert {f["Cuota"] for f in cuotas} == {"1/3", "3/3"}
 
-    pendientes = filas_tabla(libro["Pendientes"], "Fecha")
-    assert len(pendientes) == 123
-    assert "Observación" in pendientes[0] and "Corregir" in pendientes[0]
+    reversas = filas_tabla(libro["Resumen"], "Fecha")  # reversa del bordero, ahora en el Resumen
+    assert len(reversas) == 1 and "Cod. Deb." in reversas[0]
 
     conciliados = filas_tabla(libro["Conciliados"], "Medio de pago")
     assert len(conciliados) == 97

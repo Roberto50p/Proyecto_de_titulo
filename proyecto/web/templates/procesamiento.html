@@ -1,16 +1,14 @@
 {% extends "conciliacion/base.html" %}
+{% load static %}
 {% comment %}
-  Conciliación en dólares (app "web" de la rama main). Solo cambia la presentación para usar los estilos de la
-  plataforma: se mantienen los mismos campos, nombres, acciones, textos y datos que entrega la vista.
+  Conciliación en dólares (app "web"). Misma estructura que conciliacion/inicio.html; web.views.clasificar_archivos_dolar
+  reparte los archivos del input "archivos" por palabras en su nombre.
 {% endcomment %}
 {% block titulo %}Conciliación en dólares{% endblock %}
 {% block contenido %}
-<header class="cabecera">
-  <div>
-    <p class="sobretitulo">Procesamiento de Achivos</p>
-    <h1>v.1.0 Sistema Hotel San Francisco</h1>
-  </div>
-</header>
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
 
 <div class="dos-columnas">
   <!-- primera columna -->
@@ -87,23 +85,42 @@
       <label class="sr-only" for="correo-resultados">Tu correo electronico</label>
       <input type="text" id="correo-resultados" placeholder="Tu correo electronico">
     </div>
-    <button type="button" class="boton boton-principal">Enviar</button>
+    <div class="n-acciones">
+      <button type="submit" class="boton boton-principal">Conciliar</button>
+    </div>
+  </form>
+</section>
+
+
+{% if ws == 1 %}
+<section class="n-bloque">
+  {% if abonado > 0 %}
+    <p class="n-mensaje n-mensaje-success" role="alert"><strong>Excelente!</strong> Existen {{ abonado }} en transacciones en dólares que no fueron ubicadas en el ERP y que se encontraron en el archivo de Transbank.</p>
+  {% else %}
+    <p class="n-mensaje n-mensaje-warning" role="alert"><strong>Atención!</strong> No existen transacciones en dólares que no hayan sido ubicadas en el ERP. {{ msg }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="n-bloque">
+  <h2 class="n-titulo-icono">
+    <img src="{% static 'conciliacion/img/iconos/file-check.svg' %}" alt="" class="n-icono">
+    Resultado en dólares
+  </h2>
+  <div class="tabla-envoltura">
+    <table>
+      <thead><tr><th>Cuenta</th><th class="num">Ventas CM</th><th class="num">Ventas TBK</th><th class="num">Diferencia</th></tr></thead>
+      <tbody>
+        {% for item in data_dolar %}
+        <tr>
+          {% for clave, valor in item.items %}
+            {% if clave == "Total" %}<td class="celda-total">{{ valor }}</td>{% else %}<td{% if not forloop.first %} class="num"{% endif %}>{{ valor }}</td>{% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
 
-{% if ws == 1 %}
-  {% if abonado > 0 %}
-    <p class="mensaje mensaje-success" role="alert"><strong>Excelente!</strong> Existen {{ abonado }} en transacciones en Dolares que no fueron ubicadas en el ERP. y que se encontraron en el archivo de Transbank.</p>
-  {% else %}
-    <p class="mensaje mensaje-warning" role="alert"><strong>Atencion!</strong> No existen transacciones en Dolares que no hayan sido ubicadas en el ERP.{{ msg }}</p>
-  {% endif %}
-{% endif %}
-
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-      document.getElementById("miBoton").addEventListener("click", function() {
-        event.preventDefault(); // Evita que recargue
-      });
-    });
-</script>
 {% endblock %}

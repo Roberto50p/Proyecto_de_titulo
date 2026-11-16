@@ -1,14 +1,17 @@
 {% extends "conciliacion/base.html" %}
+{% load static %}
 {% block titulo %}Parámetros{% endblock %}
 {% block contenido %}
-<header class="cabecera">
-  <div>
-    <h1>Parámetros</h1>
-    <p class="ayuda">Los cambios se aplican en la próxima conciliación que proceses. Cada conciliación guarda los parámetros con que se hizo.</p>
-  </div>
-</header>
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
 
-<form method="post" class="bloque" novalidate>
+<section class="n-bloque">
+  <h1>Parámetros</h1>
+  <p class="n-ayuda">Los cambios se aplican en la próxima conciliación que proceses. Cada conciliación guarda los parámetros con que se hizo.</p>
+</section>
+
+<form method="post" class="n-bloque" novalidate>
   {% csrf_token %}
   <h2>Reglas de comparación</h2>
   <div class="fila-campos">
@@ -28,12 +31,12 @@
       {% for e in form.omitir_moneda_extranjera.errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
     </div>
   </div>
-  <div class="acciones"><button type="submit" class="boton boton-principal">Guardar parámetros</button></div>
+  <div class="n-acciones"><button type="submit" class="boton boton-principal">Guardar parámetros</button></div>
 </form>
 
-<section class="bloque">
+<section class="n-bloque">
   <h2>Equivalencias del bordero</h2>
-  <p class="ayuda">Qué medio de pago puede representar cada código de débito (Cod. Deb.) del bordero. Si una venta cruza con un código que no corresponde a su medio, se informa como "Medio de pago distinto" (aviso). Pendiente de confirmar con el hotel.</p>
+  <p class="n-ayuda">Qué medio de pago puede representar cada código de débito (Cod. Deb.) del bordero. Si una venta cruza con un código que no corresponde a su medio, se informa como "Medio de pago distinto" (aviso). Pendiente de confirmar con el hotel.</p>
   <div class="tabla-envoltura">
     <table>
       <thead><tr><th>Cod. Deb.</th><th>Medio de pago</th><th><span class="sr-only">Quitar</span></th></tr></thead>
@@ -48,7 +51,7 @@
       </tbody>
     </table>
   </div>
-  <form method="post" class="filtros">
+  <form method="post" class="filtros filtros-abajo">
     {% csrf_token %}
     <input type="hidden" name="agregar_equivalencia" value="1">
     <div class="campo"><label for="cod_deb">Cod. Deb.</label><input type="text" id="cod_deb" name="cod_deb" placeholder="Ej. D$" required></div>

@@ -44,7 +44,7 @@ PLANTILLAS = {
     ),
     c.SIN_ABONO: (
         "Pago con {cod_deb} del {fecha_bordero} por {monto_bordero} (documento {documento}) sin abono de Transbank "
-        "al cierre. Queda pendiente para el próximo mes."
+        "al cierre. Queda pendiente para la próxima conciliación."
     ),
     c.ABONO_CARTOLA: "{detalle}",
     c.DATO_INVALIDO: "{detalle}",
