@@ -18,7 +18,7 @@
   {% if conciliaciones %}
   <div class="tabla-envoltura">
     <table>
-      <thead><tr><th>Conciliación</th><th>Estado</th><th class="num">Abonado</th><th class="num">En cartola</th><th class="num">Diferencial</th><th class="num">Ventas</th><th class="num">Con falla</th><th class="num">Pendientes</th><th>Procesada</th><th>Acciones</th></tr></thead>
+      <thead><tr><th>Conciliación</th><th>Estado</th><th class="num">Abonado</th><th class="num">En cartola</th><th class="num">Diferencial</th><th class="num">Ventas</th><th class="num">Con falla</th><th>Procesada</th><th>Acciones</th></tr></thead>
       <tbody>
       {% for c in conciliaciones %}
         <tr>
@@ -30,11 +30,10 @@
             <td class="num {% if c.resumen.total.diferencial %}estado-error{% else %}estado-ok{% endif %}">{{ c.resumen.total.diferencial|pesos }}</td>
             <td class="num">{{ c.resumen.total.n_ventas|miles }}</td>
             <td class="num">{{ c.resumen.total.n_falla }}</td>
-            <td class="num">{{ c.resumen.n_pendientes|miles }}</td>
             <td>{{ c.procesada_en|date:"d/m/Y H:i" }}</td>
             <td><a href="{% url 'conciliacion:pdf' c.pk %}">PDF</a> · <a href="{% url 'conciliacion:excel' c.pk %}">Excel</a> · <a href="{% url 'conciliacion:archivos' c.pk %}">Modificar</a></td>
           {% else %}
-            <td colspan="8" class="n-ayuda">Sin procesar: <a href="{% url 'conciliacion:archivos' c.pk %}">continuar con los archivos</a></td>
+            <td colspan="7" class="n-ayuda">Sin procesar: <a href="{% url 'conciliacion:archivos' c.pk %}">continuar con los archivos</a></td>
           {% endif %}
         </tr>
       {% endfor %}

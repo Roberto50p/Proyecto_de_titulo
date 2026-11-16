@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,13 +9,13 @@ from django.views.decorators.http import require_POST
 
 from . import servicio
 from .forms import ParametrosForm, RevisionForm
-from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
+from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema,
                      VentaTransbank)
 from .motor import categorias as cat
 from .reportes import excel, pdf
 from .reportes.datos import armar
 
-VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO, "pendientes"]
+VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO]
 
 
 @login_required
@@ -193,7 +192,6 @@ def _contexto_resultado(request, conc) -> dict:
     for m in cat.MEDIOS:
         pestanas.append({"clave": m, "nombre": cat.ETIQUETA_MEDIO[m],
                          "n": datos["capitulos"][m]["resumen"].get("n_falla", 0)})
-    pestanas.append({"clave": "pendientes", "nombre": "Pendientes", "n": len(datos["pendientes"])})
 
     return {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
@@ -249,33 +247,6 @@ def revisar_venta(request, pk):
         venta.save(update_fields=["revisado", "observacion"])
         messages.success(request, f"Observación guardada para {venta.codigo_autorizacion}.")
     return redirect(_volver_seguro(request, reverse("conciliacion:detalle", args=[venta.conciliacion_id])))
-
-
-@login_required
-def pendientes(request):
-    abiertos = Pendiente.objects.filter(abierto=True).select_related("pago", "origen")
-    medio_filtro = request.GET.get("medio", "")
-    if medio_filtro:
-        abiertos = abiertos.filter(medio=medio_filtro)
-    pagina = Paginator(abiertos.order_by("pago__fecha", "pago__hora", "pk"), 30).get_page(request.GET.get("page"))
-    return render(request, "conciliacion/pendientes.html", {
-        "pendientes": pagina, "pagina": pagina,
-        "total": Pendiente.objects.filter(abierto=True).count(),
-        "medios": MEDIO_CHOICES, "medio_filtro": medio_filtro,
-    })
-
-
-@login_required
-@require_POST
-def revisar_pendiente(request, pk):
-    pendiente = get_object_or_404(Pendiente, pk=pk)
-    form = RevisionForm(request.POST)
-    if form.is_valid():
-        pendiente.revisado = form.cleaned_data["revisado"]
-        pendiente.observacion = form.cleaned_data["observacion"]
-        pendiente.save(update_fields=["revisado", "observacion"])
-        messages.success(request, "Observación guardada.")
-    return redirect(_volver_seguro(request, reverse("conciliacion:pendientes")))
 
 
 @login_required

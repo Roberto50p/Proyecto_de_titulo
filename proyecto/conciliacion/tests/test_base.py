@@ -101,7 +101,7 @@ def test_todas_las_paginas_usan_la_barra_y_el_banner(client, db):
 
     client.force_login(User.objects.create_user("u"))
     c = Conciliacion.objects.create()
-    urls = [reverse("conciliacion:inicio"), reverse("conciliacion:lista"), reverse("conciliacion:pendientes"),
+    urls = [reverse("conciliacion:inicio"), reverse("conciliacion:lista"),
             reverse("conciliacion:parametros"), reverse("conciliacion:archivos", args=[c.pk]),
             reverse("conciliacion:revision", args=[c.pk])]
     for url in urls:

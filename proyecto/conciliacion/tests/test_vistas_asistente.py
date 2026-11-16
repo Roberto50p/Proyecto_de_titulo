@@ -123,7 +123,7 @@ def test_faltan_archivos(cliente, datos_reales):
     assert "Falta el bordero." in html and "Falta la cartola." in html
 
 
-@pytest.mark.parametrize("nombre", ["nueva", "lista", "pendientes", "parametros"])
+@pytest.mark.parametrize("nombre", ["nueva", "lista", "parametros"])
 def test_requiere_login(client, db, nombre):
     r = client.get(reverse(f"conciliacion:{nombre}"))
     assert r.status_code == 302 and r.url.startswith("/login/")

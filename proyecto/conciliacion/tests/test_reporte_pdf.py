@@ -5,7 +5,7 @@ from pypdf import PdfReader
 from conciliacion.reportes.pdf import generar
 
 SECCIONES = ["1. Resumen", "2. Matriz de resultados", "3. Débito", "4. Crédito", "Cuotas", "5. Prepago",
-             "6. Pendientes", "7. Parámetros"]
+             "6. Parámetros"]
 
 
 def test_pdf_septiembre(septiembre_procesado):
@@ -21,12 +21,3 @@ def test_pdf_septiembre(septiembre_procesado):
     assert "F0FUAZ" in texto and "0FOFUAZ" in texto
     assert "5.269.462" in texto
 
-
-def test_pdf_con_texto_especial_en_observacion(septiembre_procesado):
-    from conciliacion.models import Pendiente
-
-    p = Pendiente.objects.first()
-    p.observacion = "monto<bordero & revisar"
-    p.save()
-    texto = "\n".join(pg.extract_text() for pg in PdfReader(BytesIO(generar(septiembre_procesado))).pages)
-    assert "monto<bordero & revisar" in texto

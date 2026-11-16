@@ -30,7 +30,6 @@
       {% with ruta=request.resolver_match.url_name %}
       <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'clp' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Nueva conciliación</a>
       <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}"><i class="bi bi-clock-history" aria-hidden="true"></i>Historial</a>
-      <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>Pendientes</a>
       <a href="{% url 'PR' %}" class="{% if ruta == 'PR' %}activo{% endif %}">Conciliación en US$</a>
       {# Sin acción por ahora #}
       <button type="button" title="Próximamente">Resumen última conciliación</button>

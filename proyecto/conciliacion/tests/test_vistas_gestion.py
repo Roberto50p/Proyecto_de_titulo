@@ -22,36 +22,6 @@ def test_lista_muestra_conciliaciones(cliente, septiembre_procesado):
     assert "$8.728.360" in html and ">14<" in html
 
 
-def test_pendientes_abiertos(cliente, septiembre_procesado):
-    html = cliente.get(reverse("conciliacion:pendientes")).content.decode()
-    pendiente = Pendiente.objects.filter(abierto=True).select_related("pago").order_by("pago__fecha", "pago__hora", "pk").first()
-    assert "123 pendientes abiertos" in html
-    assert pendiente.pago.documento in html and septiembre_procesado.etiqueta in html
-    assert "Conciliación de origen" in html
-
-
-def test_pendientes_paginados_de_a_30(cliente, septiembre_procesado):
-    url = reverse("conciliacion:pendientes")
-    html = cliente.get(url).content.decode()
-    assert html.count('class="paginacion"') == 2  # arriba y abajo de la tabla
-    assert html.count('<tr class="fila-medio-') == 30 and "Página 1 de 5" in html
-    ultima = cliente.get(url, {"page": 5}).content.decode()
-    assert ultima.count('<tr class="fila-medio-') == 3 and "Página 5 de 5" in ultima
-    assert "Página 5 de 5" in cliente.get(url, {"page": "999"}).content.decode()  # fuera de rango: última
-    medio = Pendiente.objects.filter(abierto=True).values_list("medio", flat=True).first()
-    filtrado = cliente.get(url, {"medio": medio}).content.decode()
-    assert f"medio={medio}&amp;page=" in filtrado or 'class="paginacion"' not in filtrado  # el filtro se mantiene
-
-
-def test_comentar_pendiente(cliente, septiembre_procesado):
-    p = Pendiente.objects.first()
-    r = cliente.post(reverse("conciliacion:revisar_pendiente", args=[p.pk]),
-                     {"observacion": "Transbank lo abona el lunes", "revisado": "on"})
-    assert r.status_code == 302
-    p.refresh_from_db()
-    assert p.observacion == "Transbank lo abona el lunes" and p.revisado
-
-
 def test_guardar_parametros(cliente):
     r = cliente.post(reverse("conciliacion:parametros"), PARAMETROS)
     assert r.status_code == 302

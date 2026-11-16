@@ -1,9 +1,8 @@
 """Arma los datos del reporte (estructura 'opción C') a partir de lo guardado en la base."""
 
-from django.db.models import Q
 from django.utils import timezone
 
-from ..models import ArchivoCargado, Conciliacion, PagoBordero, Pendiente
+from ..models import ArchivoCargado, Conciliacion, PagoBordero
 from ..motor import categorias as cat
 from ..servicio import cartola_sin_archivo, periodo_ventas, utilizables
 
@@ -16,13 +15,6 @@ AVISOS = {cat.FUERA_PERIODO, cat.CUOTA, cat.MEDIO_DISTINTO}
 def _orden(v):
     return (cat.GRAVEDAD.get(cat.TIPO.get(v.categoria, ""), 9), cat.ORDEN_CATEGORIAS.index(v.categoria),
             v.fecha_venta, v.codigo_autorizacion)
-
-
-def pendientes_abiertos_al_cierre(conc: Conciliacion):
-    """Pendientes que estaban abiertos al cierre de la conciliación: originados en ella o en una anterior y que,
-    si ya se cerraron, fue en una posterior. Así el reporte no cambia al procesar las siguientes."""
-    return (Pendiente.objects.filter(origen_id__lte=conc.id).filter(Q(abierto=True) | Q(cierre_id__gt=conc.id))
-            .select_related("pago", "origen").order_by("pago__fecha", "pago__hora"))
 
 
 def _invalidos_del_periodo(conc: Conciliacion) -> list:
@@ -82,8 +74,6 @@ def armar(conc: Conciliacion) -> dict:
         "matriz": matriz,
         "capitulos": capitulos,
         "cuotas": sorted([v for v in ventas if v.cuota_num], key=lambda v: (v.fecha_venta, v.codigo_autorizacion)),
-        "pendientes": list(pendientes_abiertos_al_cierre(conc)),
-        "n_pendientes_cerrados": resumen.get("n_pendientes_cerrados", 0),
         "parametros": conc.parametros,
         "archivos": list(conc.archivos.all()),
         "invalidos_bordero": _invalidos_del_periodo(conc),

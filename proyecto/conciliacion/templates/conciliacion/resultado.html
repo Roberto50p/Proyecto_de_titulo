@@ -25,7 +25,6 @@
   <div class="indicador"><dt>Llegó a la cartola</dt><dd>{{ d.total.abono_cartola|pesos }}</dd></div>
   <div class="indicador {% if d.total.diferencial %}alerta{% else %}bien{% endif %}"><dt>Diferencial</dt><dd>{{ d.total.diferencial|pesos }}</dd></div>
   <div class="indicador {% if d.total.n_falla %}alerta{% endif %}"><dt>Registros con falla</dt><dd>{{ d.total.n_falla|miles }} <small class="n-ayuda">de {{ d.total.n_ventas|miles }} ventas</small></dd></div>
-  <div class="indicador"><dt>Pendientes abiertos</dt><dd>{{ d.pendientes|length|miles }}</dd></div>
 </dl>
 
 <nav class="pestanas" aria-label="Secciones del resultado">
@@ -105,7 +104,7 @@
 
   <section class="n-bloque">
     <h2>Matriz de resultados</h2>
-    <p class="n-ayuda">Operación: revisar con Transbank o el banco. Dato: corregir en el sistema del hotel. Aviso y Pendiente no son fallas.</p>
+    <p class="n-ayuda">Operación: revisar con Transbank o el banco. Dato: corregir en el sistema del hotel. Aviso no es falla.</p>
     <div class="tabla-envoltura">
       <table class="matriz">
         <thead><tr><th>Categoría</th><th>Tipo</th>{% for r in d.resumen_medios %}<th class="num"><span class="medio medio-{{ r.medio }}">{{ r.etiqueta }}</span></th>{% endfor %}<th class="num">Total</th><th class="num">Monto</th></tr></thead>
@@ -119,28 +118,6 @@
             <td class="num">{{ f.total_monto|pesos }}</td>
           </tr>
         {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="n-ayuda n-nota">Red Compra (RCO) puede ser débito o prepago; sus pendientes se muestran bajo Débito.</p>
-  </section>
-
-{% elif vista == "pendientes" %}
-  <section class="n-bloque">
-    <h2>Pendientes abiertos al cierre</h2>
-    <p class="n-ayuda">Pagos con tarjeta del bordero sin abono de Transbank. Se revisan solos en la próxima conciliación. Cerrados en esta conciliación: {{ d.n_pendientes_cerrados }}.</p>
-    <div class="tabla-envoltura">
-      <table>
-        <thead><tr><th>Fecha</th><th>Cod. Deb.</th><th>Medio</th><th>Documento</th><th class="num">Monto</th><th>Cuenta</th><th>Conciliación de origen</th><th>Observación</th></tr></thead>
-        <tbody>
-        {% for p in d.pendientes %}
-          <tr class="fila-medio-{{ p.medio }}">
-            <td>{{ p.pago.fecha|date:"d/m/Y" }}</td><td>{{ p.pago.cod_deb }}</td>
-            <td><span class="medio medio-{{ p.medio }}">{{ p.medio|medio }}</span></td>
-            <td>{{ p.pago.documento }}</td><td class="num">{{ p.pago.valor|pesos }}</td>
-            <td>{{ p.pago.cuenta }}</td><td>{{ p.origen.etiqueta }}</td><td>{{ p.observacion }}</td>
-          </tr>
-        {% empty %}<tr><td colspan="8">No hay pendientes abiertos.</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>

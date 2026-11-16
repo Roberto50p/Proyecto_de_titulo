@@ -1,4 +1,4 @@
-"""Reporte Excel: Resumen · Débito · Crédito · Cuotas · Prepago · Pendientes · Conciliados · Parámetros."""
+"""Reporte Excel: Resumen · Débito · Crédito · Cuotas · Prepago · Conciliados · Parámetros."""
 
 from io import BytesIO
 
@@ -110,7 +110,6 @@ def _resumen(libro, d):
     filas = [[f["etiqueta"], f["tipo"], *[c["n"] for c in f["celdas"]], f["total_n"], f["total_monto"]]
              for f in d["matriz"]]
     h.tabla(columnas, filas, montos=["Monto total"], color_tipo_col="Tipo")
-    h.texto("Red Compra (RCO) puede ser débito o prepago; sus pendientes se muestran bajo Débito.")
     h.texto("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a Ventas Transbank."
             if d["cuadra"] else "ATENCIÓN: la suma de las categorías no coincide con Ventas Transbank.",
             negrita=not d["cuadra"])
@@ -120,6 +119,12 @@ def _resumen(libro, d):
                 "'Abonos por día' de esas fechas.", negrita=True, color="#B42318")
         h.tabla(["Fecha", "Descripción en la cartola", "Medio probable", "Monto"],
                 [[m.fecha, m.descripcion, m.medio_probable, m.abono] for m in d["cartola_sin_archivo"]],
+                montos=["Monto"], fechas=["Fecha"])
+    if d["invalidos_bordero"]:
+        h.salto()
+        h.texto("Datos inválidos del bordero (pagos con tarjeta con monto positivo / reversas)", negrita=True)
+        h.tabla(["Fecha", "Cod. Deb.", "Documento", "Monto", "Descripción"],
+                [[p.fecha, p.cod_deb, p.documento, p.valor, p.descripcion] for p in d["invalidos_bordero"]],
                 montos=["Monto"], fechas=["Fecha"])
 
 
@@ -154,24 +159,6 @@ def _cuotas(libro, d):
               v.monto_original, v.monto_abono_valido, cat.ETIQUETA.get(v.categoria), v.mensaje] for v in d["cuotas"]]
     h.tabla(columnas, filas, montos=["Monto venta", "Monto de esta cuota"], fechas=["Fecha venta"],
             anchos=[12, 12, 10, 24, 7, 15, 18, 26, 70])
-
-
-def _pendientes(libro, d):
-    h = Hoja(libro, "Pendientes")
-    _encabezado(h, d, f"Pendientes abiertos al cierre — {d['conciliacion'].etiqueta}")
-    h.texto(f"Pagos con tarjeta del bordero sin abono de Transbank. Cerrados en esta conciliación: {d['n_pendientes_cerrados']}.")
-    h.salto()
-    columnas = ["Fecha", "Cod. Deb.", "Medio", "Documento", "Monto", "Hab", "Cuenta", "Conciliación de origen", "Mensaje",
-                "Observación", "Corregir"]
-    filas = [[p.pago.fecha, p.pago.cod_deb, cat.ETIQUETA_MEDIO[p.medio], p.pago.documento, abs(p.pago.valor),
-              p.pago.hab, p.pago.cuenta, p.origen.etiqueta, p.mensaje, p.observacion, ""] for p in d["pendientes"]]
-    h.tabla(columnas, filas, montos=["Monto"], fechas=["Fecha"], filtro=True, congelar=True,
-            anchos=[12, 10, 10, 14, 13, 8, 12, 16, 70, 30, 20])
-    if d["invalidos_bordero"]:
-        h.texto("Datos inválidos del bordero (pagos con tarjeta con monto positivo / reversas)", negrita=True)
-        h.tabla(["Fecha", "Cod. Deb.", "Documento", "Monto", "Descripción"],
-                [[p.fecha, p.cod_deb, p.documento, p.valor, p.descripcion] for p in d["invalidos_bordero"]],
-                montos=["Monto"], fechas=["Fecha"])
 
 
 def _conciliados(libro, d):
@@ -220,7 +207,6 @@ def generar(conciliacion) -> bytes:
     _capitulo(libro, d, cat.CREDITO)
     _cuotas(libro, d)
     _capitulo(libro, d, cat.PREPAGO)
-    _pendientes(libro, d)
     _conciliados(libro, d)
     _parametros(libro, d)
     salida = BytesIO()

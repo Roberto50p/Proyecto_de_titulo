@@ -1,13 +1,13 @@
 from conciliacion.models import PagoBordero, Pendiente
 from datetime import date
 
-from conciliacion.servicio import periodo_ventas, procesar, validar
+from conciliacion.servicio import procesar, validar
 
 
-def test_pendientes_solo_del_periodo_de_ventas(septiembre_procesado):
-    desde, hasta = periodo_ventas(septiembre_procesado)
-    fechas = [p.pago.fecha for p in septiembre_procesado.pendientes.select_related("pago")]
-    assert fechas and all(desde <= f <= hasta for f in fechas)
+def test_conciliacion_diaria_sin_pendientes(septiembre_procesado):
+    # Manda Transbank: los pagos del bordero sin venta no se guardan como pendientes.
+    assert not Pendiente.objects.exists()
+    assert septiembre_procesado.ventas.count() == 141
 
 
 def test_bordero_traslapado_no_duplica(crear_conciliacion):
@@ -15,20 +15,6 @@ def test_bordero_traslapado_no_duplica(crear_conciliacion):
     total = PagoBordero.objects.count()
     procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
     assert PagoBordero.objects.count() == total == 228
-
-
-def test_pendiente_se_cierra_en_la_conciliacion_siguiente(crear_conciliacion):
-    agosto = procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
-    assert agosto.pendientes.filter(abierto=True).count() == 227
-
-    septiembre = procesar(crear_conciliacion())
-    venta = septiembre.ventas.get(codigo_autorizacion="003098")
-    assert venta.categoria == "OK" and f"cierra pendiente de {agosto.etiqueta}" in venta.nota
-    assert Pendiente.objects.get(pago=venta.pago).cierre == septiembre
-    assert septiembre.resumen["n_pendientes_cerrados"] == 104
-    # En septiembre no se reabren como pendientes nuevos: ya estaban abiertos desde agosto.
-    assert septiembre.pendientes.count() == 0
-    assert Pendiente.objects.filter(abierto=True).count() == 123
 
 
 def test_reprocesar_conserva_observacion(septiembre_procesado):
@@ -44,27 +30,6 @@ def test_reprocesar_conserva_observacion(septiembre_procesado):
 
 
 # ---- Correcciones de la revisión final
-
-def test_reprocesar_conciliacion_anterior_conserva_pendientes_cerrados(crear_conciliacion):
-    agosto = procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
-    septiembre = procesar(crear_conciliacion())
-    cerrado = Pendiente.objects.get(pago__documento_norm="3098")
-    cerrado.observacion = "Revisado con Transbank"
-    cerrado.save()
-    procesar(agosto)
-    cerrado = Pendiente.objects.get(pago__documento_norm="3098")
-    assert cerrado.cierre == septiembre and cerrado.observacion == "Revisado con Transbank"
-    assert Pendiente.objects.filter(cierre=septiembre).count() == 104
-
-
-def test_reporte_de_una_conciliacion_no_cambia_al_procesar_la_siguiente(crear_conciliacion):
-    from conciliacion.reportes.datos import armar
-
-    agosto = procesar(crear_conciliacion(["BORDERO 04-09 A 07-09.xlsx"]))
-    assert len(armar(agosto)["pendientes"]) == 227
-    procesar(crear_conciliacion())
-    assert len(armar(agosto)["pendientes"]) == 227
-
 
 def test_abonos_de_cartola_sin_archivo(septiembre_procesado):
     from conciliacion.servicio import cartola_sin_archivo

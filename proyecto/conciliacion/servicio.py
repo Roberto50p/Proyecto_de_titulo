@@ -486,21 +486,12 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         **_observacion(conc, "abonos", _clave_abono(r["medio"], r["fecha_abono"])),
     ) for r in resultados_abono])
 
-    # El bordero puede traer meses enteros: solo cuentan los pagos del período de las ventas Transbank.
+    # Conciliación diaria: manda Transbank. Los pagos del bordero sin venta no se listan (sin pendientes);
+    # solo se cuentan las reversas del período de las ventas.
     desde, hasta = periodo_ventas(conc)
     if desde:
         pagos_del_mes = set(PagoBordero.objects.filter(id__in=pagos_del_mes, fecha__range=(desde, hasta))
                             .values_list("id", flat=True))
-
-    # Pagos del bordero de esta conciliación que siguen sin abono → pendientes.
-    sin_abono = PagoBordero.objects.filter(id__in=pagos_del_mes, conciliacion__isnull=True, invalido=False,
-                                           pendiente__isnull=True)
-    Pendiente.objects.bulk_create([Pendiente(
-        pago=p, medio=_medio_de_pago(p.cod_deb, params), origen=conc,
-        mensaje=mensaje(cat.SIN_ABONO, cod_deb=p.cod_deb, fecha_bordero=fmt_fecha(p.fecha),
-                        monto_bordero=pesos(abs(p.valor)), documento=p.documento or "(vacío)"),
-        **_observacion(conc, "pendientes", str(p.id)),
-    ) for p in sin_abono])
 
     conc.parametros = params.a_dict()
     conc.resumen = calcular_resumen(conc, params, pagos_del_mes)
@@ -561,9 +552,6 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
             r["n_falla"] += 1
             matriz[a.categoria][a.medio]["n"] += 1
             matriz[a.categoria][a.medio]["monto"] += a.total_abono
-    for p in conc.pendientes.select_related("pago"):
-        matriz[cat.SIN_ABONO][p.medio]["n"] += 1
-        matriz[cat.SIN_ABONO][p.medio]["monto"] += abs(p.pago.valor)
     for p in PagoBordero.objects.filter(id__in=pagos_del_mes, invalido=True):
         m = _medio_de_pago(p.cod_deb, params)
         matriz[cat.DATO_INVALIDO][m]["n"] += 1
@@ -578,8 +566,6 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
         "medios": por_medio,
         "total": total,
         "matriz": matriz,
-        "n_pendientes": conc.pendientes.count(),
-        "n_pendientes_cerrados": Pendiente.objects.filter(cierre=conc).count(),
         "n_invalidos_bordero": PagoBordero.objects.filter(id__in=pagos_del_mes, invalido=True).count(),
         "cartola_sin_archivo": {"n": len(sin_archivo), "monto": sum(m.abono for m in sin_archivo)},
     }
