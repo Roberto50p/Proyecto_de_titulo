@@ -1,5 +1,7 @@
 /* Hoja de estilos de la plataforma (interfaz nueva, ahora la única). */
 
+@import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.min.css");
+
 :root {
   --n-lateral: #ede8e8;
   --n-tinta: #1b2430;
@@ -42,11 +44,28 @@ body { margin: 0; font-family: var(--n-fuente); color: var(--n-tinta); backgroun
   font: inherit; font-size: .95rem; color: var(--n-tinta); text-decoration: none;
   background: none; border: none; cursor: pointer;
 }
+.n-menu a i { margin-right: .5rem; }
 .n-menu a:hover, .n-menu button:hover { background: rgba(0, 0, 0, .06); }
 .n-menu .activo { background: var(--n-papel); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
 .n-limpiar { margin-top: .75rem; padding-top: .5rem; border-top: 1px solid rgba(0, 0, 0, .1); }
 .n-menu .n-limpiar button { color: #B42318; }
 .n-menu .n-limpiar button:hover { background: rgba(180, 35, 24, .08); }
+
+.n-lateral-cabecera { display: flex; align-items: center; gap: .5rem; }
+.n-colapsar {
+  flex: none; margin-left: auto; padding: .35rem .5rem; border-radius: var(--n-radio);
+  font-size: 1.1rem; line-height: 1; color: var(--n-tinta); background: none; border: none; cursor: pointer;
+}
+.n-colapsar:hover { background: rgba(0, 0, 0, .06); }
+.n-app.colapsado { grid-template-columns: auto 1fr; }
+.colapsado .n-lateral { padding: 1.25rem .5rem; }
+.colapsado .n-lateral > :not(.n-lateral-cabecera, .n-menu), .colapsado .n-marca-texto { display: none; }
+.colapsado .n-lateral-cabecera { flex-direction: column; }
+.colapsado .n-colapsar { margin-left: 0; }
+/* Colapsado: solo los ítems con ícono; font-size 0 oculta el texto pero lo deja para lectores de pantalla. */
+.colapsado .n-menu > :not(:has(i)) { display: none; }
+.colapsado .n-menu a { font-size: 0; text-align: center; }
+.colapsado .n-menu a i { font-size: 1.1rem; margin: 0; }
 
 .n-usuario { margin-top: auto; font-size: .85rem; color: var(--n-tinta-suave); display: flex; flex-direction: column; gap: .25rem; }
 .n-usuario button { background: none; border: none; padding: 0; font: inherit; color: var(--n-tinta); text-decoration: underline; cursor: pointer; }
@@ -106,6 +125,13 @@ body { margin: 0; font-family: var(--n-fuente); color: var(--n-tinta); backgroun
 .n-dialogo { width: min(28rem, calc(100% - 2rem)); padding: 1.5rem; border: 1px solid var(--n-linea); border-radius: var(--n-radio); background: var(--n-papel); color: var(--n-tinta); }
 .n-dialogo::backdrop { background: rgba(27, 36, 48, .45); }
 .n-dialogo h2 { margin-top: 0; }
+.dialog-body { display: flex; justify-content: center; gap: 1rem; margin: 1.25rem 0; }
+.dialog-body .boton { flex-direction: column; gap: .4rem; min-width: 8rem; padding: 1rem 1.5rem; font-size: 1.1rem; }
+.dialog-body .boton i { font-size: 2rem; line-height: 1; }
+/* Colores de botón; tonos con contraste AA sobre texto blanco. */
+.fg-emphasis-success { background: #1a7f37; border-color: #1a7f37; color: #fff; }
+.fg-emphasis-primary { background: #0969da; border-color: #0969da; color: #fff; }
+.fg-emphasis-success:hover, .fg-emphasis-primary:hover { filter: brightness(.92); }
 
 /* Fila completa clicable: el enlace del código se estira sobre toda la fila */
 .fila-enlace { position: relative; cursor: pointer; transition: box-shadow .15s; }

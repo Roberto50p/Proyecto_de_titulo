@@ -1,8 +1,8 @@
 {% extends "conciliacion/base.html" %}
 {% load static %}
 {% comment %}
-  Conciliación en dólares (app "web"). Misma estructura que conciliacion/inicio.html; los nombres de campo
-  archivo1..archivo7 son los que lee web.views.procesamiento.
+  Conciliación en dólares (app "web"). Misma estructura que conciliacion/inicio.html; web.views.clasificar_archivos_dolar
+  reparte los archivos del input "archivos" por palabras en su nombre.
 {% endcomment %}
 {% block titulo %}Conciliación en dólares{% endblock %}
 {% block contenido %}
@@ -12,7 +12,7 @@
 
 <section class="n-bloque">
   <h1>Conciliación en dólares</h1>
-  <p class="n-ayuda">Sube el ERP, los reportes en dólares de cada tarjeta, la cartola del banco y el reporte Transbank (.xlsx o .xls).</p>
+  <p class="n-ayuda">Sube el ERP, los reportes en dólares de cada tarjeta, la cartola del banco y el reporte Transbank (.xlsx o .xls). El tipo se reconoce por el nombre del archivo: debe incluir ERP, Amex, Diners, Visa, Master, Banco o Cartola (opcional), o Transbank/TBK.</p>
   <form action="{% url 'PR' %}" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="n-zona-carga">

@@ -9,6 +9,7 @@ from django.contrib.auth import authenticate,logout,login as login_aut
 from django.contrib.auth.decorators import login_required, permission_required
 
 from django.shortcuts import redirect
+from django.contrib import messages
 from datetime import datetime, timedelta
 import uuid
 import math
@@ -71,6 +72,32 @@ def inicio(request):
     mensaje={'comentarios':comentarios}
     return render(request,"index.html",mensaje)
 
+# Tipo de cada Excel según palabras en su nombre (como identificar_procesar en la conciliación CLP).
+TIPOS_ARCHIVO_DOLAR = {
+    'archivo1': ('ERP', ('erp',)),
+    'archivo2': ('Amex', ('amex',)),
+    'archivo3': ('Diners', ('diners', 'dinners')),
+    'archivo4': ('Visa', ('visa',)),
+    'archivo5': ('Mastercard', ('master',)),
+    'archivo6': ('Banco', ('banco', 'cartola')),
+    'archivo7': ('Transbank', ('transbank', 'tbk')),
+}
+
+def clasificar_archivos_dolar(subidos):
+    """Devuelve ({campo: archivo}, [problemas]) para los archivos subidos en un solo input múltiple."""
+    archivos, problemas = {}, []
+    for f in subidos:
+        nombre = f.name.lower()
+        campos = [c for c, (_, claves) in TIPOS_ARCHIVO_DOLAR.items() if any(k in nombre for k in claves)]
+        if len(campos) != 1:
+            problemas.append(f"No se reconoce el tipo de «{f.name}»: su nombre debe incluir solo una de: "
+                             "ERP, Amex, Diners, Visa, Master, Banco/Cartola o Transbank/TBK.")
+        elif campos[0] in archivos:
+            problemas.append(f"Hay más de un archivo de {TIPOS_ARCHIVO_DOLAR[campos[0]][0]}: «{archivos[campos[0]].name}» y «{f.name}».")
+        else:
+            archivos[campos[0]] = f
+    return archivos, problemas
+
 def procesamiento(request):
     try:
         asyncio.run(obtener_datos())
@@ -93,14 +120,26 @@ def procesamiento(request):
     
     if request.method == 'POST':
     
-        archivo1 = request.FILES.get('archivo1') # ERP
-        archivo2 = request.FILES.get('archivo2') # amex
-        archivo3 = request.FILES.get('archivo3') # dinners
-        archivo4 = request.FILES.get('archivo4') # visa dolar
-        archivo5 = request.FILES.get('archivo5') # mastercard
-        archivo6 = request.FILES.get('archivo6') # banco
-        archivo7 = request.FILES.get('archivo7') # transbank 
-    
+        archivos, problemas = clasificar_archivos_dolar(request.FILES.getlist('archivos'))
+        archivo1 = archivos.get('archivo1') # ERP
+        archivo2 = archivos.get('archivo2') # amex
+        archivo3 = archivos.get('archivo3') # dinners
+        archivo4 = archivos.get('archivo4') # visa dolar
+        archivo5 = archivos.get('archivo5') # mastercard
+        archivo6 = archivos.get('archivo6') # banco
+        archivo7 = archivos.get('archivo7') # transbank
+        # Todos menos el banco se leen sin revisar si llegaron; sin ellos la vista caía con error 500.
+        faltan = [nombre for campo, (nombre, _) in TIPOS_ARCHIVO_DOLAR.items() if campo != 'archivo6' and campo not in archivos]
+        if faltan:
+            problemas.append("Faltan: " + ", ".join(faltan) + ".")
+        if problemas:
+            for p in problemas:
+                messages.error(request, p)
+            return redirect('PR')
+        # Listas globales (las leen las vistas descargar_excel*): sin vaciarlas, cada "Conciliar" suma la corrida anterior.
+        for lista in (informacion_proceso, documento_inf, monto_buscar_inf, fecha_inf, tc_inf):
+            lista.clear()
+
         abonado = 0
         
         if archivo6:
