@@ -10,7 +10,8 @@ from functools import lru_cache
 
 import pandas as pd
 from django.db import transaction
-from django.db.models import Max, Min
+from django.db.models import Max, Min, Q
+from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
 from .lectores.bordero import leer_bordero
@@ -374,6 +375,50 @@ def limpiar_base() -> int:
     for f in archivos:  # los archivos físicos se borran solo si la base quedó limpia
         f.delete(save=False)
     return n
+
+
+def seleccionar(desde=None, hasta=None):
+    """Conciliaciones cuyo período cae completo entre `desde` y `hasta` (ambos opcionales e inclusivos), anotadas con
+    `p_desde` y `p_hasta`. El período son los días de abono de sus archivos Transbank, como en su nombre; si no tiene
+    abonos cargados se usa el día en que se creó."""
+    validos = Q(archivos__tipo=ArchivoCargado.TRANSBANK, archivos__error="", archivos__fecha_abono__isnull=False)
+    creada = TruncDate("creada_en")
+    conciliaciones = Conciliacion.objects.annotate(
+        p_desde=Coalesce(Min("archivos__fecha_abono", filter=validos), creada),
+        p_hasta=Coalesce(Max("archivos__fecha_abono", filter=validos), creada),
+    )
+    if desde:
+        conciliaciones = conciliaciones.filter(p_desde__gte=desde)
+    if hasta:
+        conciliaciones = conciliaciones.filter(p_hasta__lte=hasta)
+    return conciliaciones.order_by("p_desde", "pk")
+
+
+def eliminar_conciliaciones(ids) -> dict:
+    """Borra las conciliaciones indicadas y lo que depende solo de ellas: archivos (también el archivo guardado),
+    ventas, abonos, movimientos de cartola, los pendientes que originaron, la cobertura de sus borderos y los pagos
+    del bordero que ninguna otra conciliación usa o tiene pendientes. Los pendientes de otras conciliaciones que una
+    borrada cerró siguen cerrados. Devuelve cuánto se borró de cada cosa."""
+    conciliaciones = Conciliacion.objects.filter(pk__in=list(ids))
+    archivos = list(ArchivoCargado.objects.filter(conciliacion__in=conciliaciones))
+    borrado = {
+        "conciliaciones": conciliaciones.count(),
+        "archivos": len(archivos),
+        "ventas": VentaTransbank.objects.filter(conciliacion__in=conciliaciones).count(),
+        "pendientes": Pendiente.objects.filter(origen__in=conciliaciones).count(),
+    }
+    with transaction.atomic():
+        pagos = set(PagoBordero.objects.filter(Q(archivos__in=archivos) | Q(conciliacion__in=conciliaciones))
+                    .values_list("id", flat=True))
+        CoberturaBordero.objects.filter(archivo__in=archivos).delete()
+        conciliaciones.delete()  # en cascada: archivos, ventas, abonos, movimientos de cartola y sus pendientes
+        _, por_modelo = PagoBordero.objects.filter(id__in=pagos, archivos__isnull=True, conciliacion__isnull=True,
+                                                   pendiente__isnull=True).delete()
+    borrado["pagos"] = por_modelo.get(PagoBordero._meta.label, 0)
+    for ac in archivos:  # los archivos guardados se borran solo si la base ya quedó sin ellos
+        ac.archivo.delete(save=False)
+    return borrado
+
 
 
 def _registrar_bordero(ac: ArchivoCargado, params: Parametros) -> list[int]:
