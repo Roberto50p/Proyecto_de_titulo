@@ -6,7 +6,8 @@ from django.utils import timezone
 from .lectores.comunes import clave
 from .motor import categorias as cat
 from .motor import dolar as usd
-from .motor.parametros import NOMBRE_COD_DEB, REGLAS_MEDIO_CARTOLA_INICIALES, escribir_reglas_medio
+from .motor.parametros import (NOMBRE_COD_DEB, REGLAS_MEDIO_CARTOLA_INICIALES, cod_deb_de_tarjeta,
+                               escribir_reglas_medio)
 
 MEDIO_CHOICES = [(m, cat.ETIQUETA_MEDIO[m]) for m in cat.MEDIOS]
 CATEGORIA_CHOICES = [(k, v) for k, v in cat.ETIQUETA.items()]
@@ -253,6 +254,51 @@ class ResultadoAbono(models.Model):
     @property
     def tipo(self) -> str:
         return cat.TIPO.get(self.categoria, "")
+
+
+class CorreccionManual(models.Model):
+    """Decisión del analista sobre una venta anómala. No edita los archivos originales: al volver a conciliar, el dato
+    editado entra al cruce como un pago del bordero y el motor verifica si ahora calza. Si solo se acepta (sin datos),
+    la venta queda corregida y el comentario es la evidencia.
+
+    La venta se identifica por sus datos (código, medio, cuota, fecha y monto) y no por su id, porque las ventas se
+    borran y se vuelven a crear cada vez que se concilia."""
+
+    conciliacion = models.ForeignKey(Conciliacion, related_name="correcciones", on_delete=models.CASCADE)
+    medio = models.CharField(max_length=10, choices=MEDIO_CHOICES)
+    codigo_norm = models.CharField(max_length=30, blank=True)
+    cuota_num = models.PositiveSmallIntegerField(default=0)
+    fecha_venta = models.DateField()
+    monto_original = models.BigIntegerField()
+    codigo_autorizacion = models.CharField(max_length=30, blank=True)
+    local = models.CharField(max_length=80, blank=True)
+    # Dato original, copiado al corregir (el archivo del bordero se puede reemplazar después).
+    categoria_original = models.CharField(max_length=20, choices=CATEGORIA_CHOICES)
+    mensaje_original = models.TextField(blank=True)
+    documento_original = models.CharField(max_length=60, blank=True)
+    monto_bordero_original = models.BigIntegerField(null=True, blank=True)
+    cod_deb_original = models.CharField(max_length=10, blank=True)
+    # Dato editado por el analista (vacío si solo acepta).
+    documento = models.CharField(max_length=60, blank=True)
+    monto = models.BigIntegerField(null=True, blank=True)
+    cod_deb = models.CharField(max_length=10, blank=True)
+    fecha_bordero = models.DateField(null=True, blank=True)
+    aceptada = models.BooleanField(default=False)
+    comentario = models.TextField(blank=True)
+    creada = models.DateTimeField(auto_now_add=True)
+    modificada = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["fecha_venta", "codigo_norm"]
+        verbose_name = "corrección manual"
+        verbose_name_plural = "correcciones manuales"
+        constraints = [models.UniqueConstraint(
+            fields=["conciliacion", "medio", "codigo_norm", "cuota_num", "fecha_venta", "monto_original"],
+            name="una_correccion_por_venta")]
+
+    @property
+    def clave(self) -> tuple:
+        return self.medio, self.codigo_norm, self.cuota_num, self.fecha_venta, self.monto_original
 
 
 class VentaDolar(models.Model):

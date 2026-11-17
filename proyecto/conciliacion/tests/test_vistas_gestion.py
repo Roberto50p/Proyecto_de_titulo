@@ -24,69 +24,26 @@ def test_lista_muestra_conciliaciones(cliente, septiembre_procesado):
     assert "$8.728.360" in html and ">14<" in html
 
 
-def test_pendientes_abiertos(cliente, septiembre_procesado):
-    html = cliente.get(reverse("conciliacion:pendientes")).content.decode()
-    pendiente = Pendiente.objects.filter(abierto=True).select_related("pago").order_by("pago__fecha", "pago__hora", "pk").first()
-    assert "123 pendientes abiertos" in html
-    assert pendiente.pago.documento in html and septiembre_procesado.etiqueta in html
-    assert "Conciliación de origen" in html
-
-
-def test_pendientes_paginados_de_a_30(cliente, septiembre_procesado):
-    url = reverse("conciliacion:pendientes")
-    html = cliente.get(url).content.decode()
-    assert html.count('class="paginacion"') == 2  # arriba y abajo de la tabla
-    assert html.count('<tr class="fila-medio-') == 30 and "Página 1 de 5" in html
-    ultima = cliente.get(url, {"page": 5}).content.decode()
-    assert ultima.count('<tr class="fila-medio-') == 3 and "Página 5 de 5" in ultima
-    assert "Página 5 de 5" in cliente.get(url, {"page": "999"}).content.decode()  # fuera de rango: última
-    medio = Pendiente.objects.filter(abierto=True).values_list("medio", flat=True).first()
-    filtrado = cliente.get(url, {"medio": medio}).content.decode()
-    # el filtro se mantiene (la moneda siempre va: CLP por defecto)
-    assert f"medio={medio}&amp;moneda=CLP&amp;page=" in filtrado or 'class="paginacion"' not in filtrado
-
-
-def test_filtro_moneda_en_historial_y_pendientes(cliente):
+def test_filtro_moneda_en_historial(cliente):
     """La moneda sale de ArchivoCargado.moneda ("Pesos chilenos" / "Dólares"); el bordero no la informa."""
     def conciliacion(moneda, dia, documento):
         c = Conciliacion.objects.create()
         ArchivoCargado.objects.create(conciliacion=c, tipo="transbank", nombre=f"{documento}.xlsx", sha256=documento,
                                       moneda=moneda, fecha_abono=date(2026, 9, dia), archivo="x.xlsx")
-        pago = PagoBordero.objects.create(cod_deb="VI", valor=1000, documento=documento, fecha=date(2026, 9, dia))
-        Pendiente.objects.create(pago=pago, medio="CREDITO", origen=c)
         return c
 
     clp, usd = conciliacion("Pesos chilenos", 1, "DOC-CLP"), conciliacion("Dólares", 2, "DOC-USD")
-    por_defecto = cliente.get(reverse("conciliacion:pendientes")).content.decode()
-    assert "DOC-CLP" in por_defecto and "DOC-USD" not in por_defecto  # sin elegir: CLP
-    assert 'value="CLP" class="boton moneda" aria-pressed="true"' in por_defecto
-    # En USD el grupo "Medio de pago" muestra las tarjetas; el medio en pesos se descarta al cambiar.
-    en_usd = cliente.get(reverse("conciliacion:pendientes"), {"moneda": "USD", "medio": "DEBITO"}).content.decode()
-    assert all(f">{t}</button>" in en_usd for t in ("Amex", "Diners", "Mastercard", "Visa"))
-    assert ">Débito</button>" not in en_usd and ">Débito</button>" in por_defecto
-    assert 'name="medio" value=""' in en_usd  # el hidden quedó vacío
-    for nombre, texto in (("conciliacion:lista", "etiqueta"), ("conciliacion:pendientes", "documento")):
-        valor = {"etiqueta": lambda c: c.etiqueta, "documento": lambda c: c.pendientes.get().pago.documento}[texto]
-        url = reverse(nombre)
-        solo_clp = cliente.get(url, {"moneda": "CLP"}).content.decode()
-        solo_usd = cliente.get(url, {"moneda": "USD"}).content.decode()
-        assert valor(clp) in solo_clp and valor(usd) not in solo_clp
-        assert valor(usd) in solo_usd and valor(clp) not in solo_usd
+    url = reverse("conciliacion:lista")
+    solo_clp = cliente.get(url, {"moneda": "CLP"}).content.decode()
+    solo_usd = cliente.get(url, {"moneda": "USD"}).content.decode()
+    assert clp.etiqueta in solo_clp and usd.etiqueta not in solo_clp
+    assert usd.etiqueta in solo_usd and clp.etiqueta not in solo_usd
 
     # Archivos en ambas monedas: la conciliación aparece en CLP y en USD.
     ArchivoCargado.objects.create(conciliacion=clp, tipo="cartola", nombre="cartola-usd.xlsx", sha256="mixto",
                                   moneda="Dólares", archivo="x.xlsx")
     for moneda in ("CLP", "USD"):
         assert clp.etiqueta in cliente.get(reverse("conciliacion:lista"), {"moneda": moneda}).content.decode()
-
-
-def test_comentar_pendiente(cliente, septiembre_procesado):
-    p = Pendiente.objects.first()
-    r = cliente.post(reverse("conciliacion:revisar_pendiente", args=[p.pk]),
-                     {"observacion": "Transbank lo abona el lunes", "revisado": "on"})
-    assert r.status_code == 302
-    p.refresh_from_db()
-    assert p.observacion == "Transbank lo abona el lunes" and p.revisado
 
 
 def test_guardar_parametros(cliente):

@@ -720,9 +720,14 @@ def _procesar_dolar(conc: Conciliacion) -> Conciliacion:
     """Cruza las ventas del abono Transbank US$ con el ERP y las carteras, y verifica cada abono en la cartola US$."""
     archivos = utilizables(conc)
     del_tipo = lambda tipo: [ac for ac in archivos if ac.tipo == tipo]  # noqa: E731
-    abonos = [(ac, leer_abono_dolar(ac.archivo.path)) for ac in del_tipo(ArchivoCargado.ABONO_USD)]
-    erp = pd.concat([leer_erp(ac.archivo.path) for ac in del_tipo(ArchivoCargado.ERP)], ignore_index=True)
-    carteras = {c.marca: c.documentos for c in (leer_cartera(ac.archivo.path) for ac in del_tipo(ArchivoCargado.EMISOR))}
+
+    def leer(ac, lector, **kw):  # en R2 el archivo no tiene ruta local
+        with ruta_local(ac) as ruta:
+            return lector(ruta, **kw)
+
+    abonos = [(ac, leer(ac, leer_abono_dolar)) for ac in del_tipo(ArchivoCargado.ABONO_USD)]
+    erp = pd.concat([leer(ac, leer_erp) for ac in del_tipo(ArchivoCargado.ERP)], ignore_index=True)
+    carteras = {c.marca: c.documentos for c in (leer(ac, leer_cartera) for ac in del_tipo(ArchivoCargado.EMISOR))}
 
     ventas = []
     for ac, a in abonos:
@@ -735,7 +740,7 @@ def _procesar_dolar(conc: Conciliacion) -> Conciliacion:
                                      monto_original=v["monto_original"], comision=v["comision"], **r))
     VentaDolar.objects.bulk_create(ventas)
 
-    cartolas = [leer_cartola(ac.archivo.path, monto=a_decimal) for ac in del_tipo(ArchivoCargado.CARTOLA)]
+    cartolas = [leer(ac, leer_cartola, monto=a_decimal) for ac in del_tipo(ArchivoCargado.CARTOLA)]
     if cartolas:
         movimientos = pd.concat([c.movimientos for c in cartolas], ignore_index=True)
         verificados = [usd.verificar_abono(a.resumen["abono"], a.fecha_abono, movimientos) for _, a in abonos]

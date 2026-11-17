@@ -97,7 +97,7 @@ def nueva(request):
 def _borrador(request, moneda: str = Conciliacion.CLP) -> Conciliacion:
     conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True,
                                                         moneda=moneda)
-                 if not c.parametros and not c.observaciones), None)
+                 if not c.parametros and not c.correcciones.exists()), None)
     return conc or Conciliacion.objects.create(creada_por=request.user, moneda=moneda)
 
 

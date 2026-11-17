@@ -10,7 +10,11 @@
   {% firstof conc.moneda moneda as moneda %}
   <h1>Conciliación {{ moneda }}</h1>
   {% if conc %}<p class="n-periodo">{{ conc.etiqueta }}</p>{% endif %}
+  {% if moneda == "USD" %}
+  <p class="n-ayuda">Sube el abono Transbank US$, el ERP de tarjetas, la cartera "Posición Por Clientes" de cada tarjeta (Amex, Diners, Visa, Mastercard) y la cartola US$ (.xlsx o .xls). Puedes agregarlos de a uno o desde distintas carpetas: se van sumando hasta que presiones Cargar.</p>
+  {% else %}
   <p class="n-ayuda">Sube el bordero, la cartola y los reportes Transbank (.xlsx o .xls). Puedes agregarlos de a uno o desde distintas carpetas: se van sumando hasta que presiones Cargar.</p>
+  {% endif %}
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     <div class="n-zona-carga">
