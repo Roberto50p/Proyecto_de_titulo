@@ -209,6 +209,8 @@ Ambos se arman desde `reportes/datos.py → armar()`, que lee lo ya guardado en 
 
 > Ojo: el requerimiento habla de **2 archivos Excel** (uno de cuentas cuadradas y otro de anómalas). Hoy es **un Excel con hojas separadas**. Si el profesor/cliente espera dos archivos, se puede partir `generar()` en dos funciones: una con Resumen + Conciliados y otra con Débito/Crédito/Prepago (fallas) + Cuotas + Pendientes, y agregar una ruta de descarga más en `urls.py` y `views.py`.
 
+**Respaldo** (`reportes/respaldo.py`): para la pantalla "Gestión de datos". `tablas()` arma todas las tablas de las conciliaciones elegidas (fila por fila, con el ID de la conciliación) y `excel()` las escribe en un libro. La selección por fechas es `servicio.seleccionar()` y el borrado `servicio.eliminar_conciliaciones()`; las vistas (`views.datos`, `exportar_datos`, `eliminar_datos`) solo permiten eliminar lo que se exportó en la misma sesión.
+
 **"Dashboard"**: es la pantalla de resultado (`views.detalle` + `templates/conciliacion/resultado.html`), con pestañas Resumen / Débito / Crédito / Prepago / Pendientes, filtros por categoría y local, y la opción de marcar cada venta como "revisada" con una observación. Esas observaciones se conservan aunque se reprocese.
 
 ---
@@ -244,6 +246,7 @@ Ambos se arman desde `reportes/datos.py → armar()`, que lee lo ya guardado en 
 | Cambiar columnas/hojas del Excel | `reportes/excel.py` |
 | Cambiar la pantalla de resultado | `views.py → detalle` + `templates/conciliacion/resultado.html` |
 | Datos de la empresa (RUT, nombre) en reportes | `reportes/datos.py` (están escritos fijos en el código) |
+| Exportar y limpiar datos antiguos | Pantalla Gestión de datos; código en `reportes/respaldo.py` + `servicio.py` (`seleccionar`, `eliminar_conciliaciones`) |
 
 ---
 

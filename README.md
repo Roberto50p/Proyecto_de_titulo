@@ -83,6 +83,14 @@ Las categorías y reglas están en `conciliacion/motor/` (`categorias.py`, `cruc
 
 Cada conciliación guarda los parámetros con que se procesó y los muestra en el PDF y el Excel.
 
+### Gestión de datos (solo administradores)
+
+La sección **Gestión de datos** (`/datos/`) saca conciliaciones antiguas de la base dejando un respaldo:
+
+1. **Filtrar**: "Desde" y "Hasta (fecha tope)", ambos opcionales e inclusivos, o los atajos "Más de 3 meses / 6 meses / 1 año" que fijan la fecha tope. Entra cada conciliación cuyo período de abono (los días de abono de sus Transbank) cae completo en el rango; un borrador sin abonos cuenta el día en que se creó.
+2. **Exportar y limpiar** → **Excel** (descarga). El respaldo trae conciliaciones, archivos, ventas Transbank, abonos, cartola, pendientes y pagos del bordero, cada fila con el ID de su conciliación.
+3. **Eliminar de la base**: escribir ELIMINAR para confirmar. Solo se eliminan exactamente las conciliaciones recién exportadas en la sesión; si cambia el filtro o los datos, hay que exportar de nuevo. Se borran también sus archivos guardados, la cobertura de sus borderos y los pagos del bordero que ninguna otra conciliación usa; parámetros y equivalencias no se tocan.
+
 ### Conciliación en dólares
 
 La sección **Conciliación en US$** (`/dolares/`) es la app `web` de la rama `main`, incorporada sin cambiar su código Python (`web/` y `hotel/conciliacion/` son copia exacta de `main`). Solo se reescribió su plantilla `web/templates/procesamiento.html` con los estilos de la plataforma, manteniendo campos, textos y acciones. Se publican únicamente su vista de procesamiento y sus dos descargas Excel, y piden sesión como el resto (`hotel/urls.py`).
