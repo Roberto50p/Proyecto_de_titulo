@@ -2,6 +2,7 @@
 
 import hashlib
 from collections import Counter, defaultdict
+from decimal import Decimal
 
 import pandas as pd
 from django.db import transaction
@@ -9,8 +10,9 @@ from django.utils import timezone
 
 from .lectores.bordero import leer_bordero
 from .lectores.cartola import leer_cartola
-from .lectores.comunes import ArchivoNoReconocido, clave
+from .lectores.comunes import ArchivoNoReconocido, a_decimal, clave
 from .lectores.deteccion import detectar
+from .lectores.dolar import leer_abono_dolar, leer_cartera, leer_erp
 from .lectores.transbank import leer_transbank
 from .models import (
     ArchivoCargado,
@@ -22,14 +24,19 @@ from .models import (
     ParametrosSistema,
     Pendiente,
     ResultadoAbono,
+    VentaDolar,
     VentaTransbank,
 )
 from .motor import categorias as cat
+from .motor import dolar as usd
 from .motor.abonos import conciliar_abonos, cuadratura_archivo, cuadratura_por_medio
 from .motor.cruce import conciliar_ventas, pagos_tarjeta
 from .motor.mensajes import fecha as fmt_fecha
 from .motor.mensajes import mensaje, pesos
 from .motor.parametros import Parametros, leer_reglas_medio
+
+
+TIPOS_DOLAR = (ArchivoCargado.ABONO_USD, ArchivoCargado.ERP, ArchivoCargado.EMISOR)
 
 
 def parametros_actuales() -> Parametros:
@@ -92,6 +99,23 @@ def leer_archivo(ac: ArchivoCargado) -> None:
         elif ac.tipo == ArchivoCargado.BORDERO:
             b = leer_bordero(ruta)
             ac.desde, ac.hasta, ac.filas = b.desde, b.hasta, len(b.movimientos)
+        elif ac.tipo == ArchivoCargado.ABONO_USD:
+            a = leer_abono_dolar(ruta)
+            ac.moneda, ac.cuenta, ac.fecha_abono, ac.filas = a.moneda, a.cuenta, a.fecha_abono, len(a.ventas)
+            if not a.ventas.empty:
+                ac.desde, ac.hasta = a.ventas.fecha_venta.min(), a.ventas.fecha_venta.max()
+            # Montos en float solo para mostrar; al conciliar se relee el archivo con centavos exactos.
+            ac.resumen = {k: float(v) for k, v in a.resumen.items()} | {
+                "tarjetas": sorted(set(a.ventas.tarjeta)) if not a.ventas.empty else []}
+        elif ac.tipo == ArchivoCargado.EMISOR:
+            c = leer_cartera(ruta)
+            ac.banco, ac.filas, ac.resumen = f"{usd.TARJETAS[c.marca]} US$", len(c.documentos), {"marca": c.marca}
+        elif ac.tipo == ArchivoCargado.ERP:
+            e = leer_erp(ruta)
+            fechas = e.fecha.dropna()
+            ac.filas = len(e)
+            if not fechas.empty:
+                ac.desde, ac.hasta = fechas.min(), fechas.max()
         else:
             c = leer_cartola(ruta)
             ac.banco, ac.cuenta, ac.moneda = c.banco, c.cuenta, c.moneda
@@ -110,7 +134,10 @@ def utilizables(conc: Conciliacion) -> list[ArchivoCargado]:
 
 def validar(conc: Conciliacion, choques: dict | None = None) -> list[str]:
     """Errores que impiden conciliar. `choques` son los conflictos(conc) ya calculados, para no releer los archivos."""
-    errores = []
+    if conc.moneda == Conciliacion.USD:
+        return _validar_dolar(conc)
+    errores = [f"{a.nombre}: es un archivo de la conciliación en dólares; quítalo." for a in conc.archivos.all()
+               if a.tipo in TIPOS_DOLAR]
     archivos = list(conc.archivos.all())
     for a in archivos:
         if a.error:
@@ -161,6 +188,8 @@ def _ventas_sin_bordero(a: ArchivoCargado, borderos: list[tuple]) -> list[str]:
 
 def advertencias(conc: Conciliacion) -> list[str]:
     """Situaciones que no impiden conciliar pero conviene saber."""
+    if conc.moneda == Conciliacion.USD:
+        return _advertencias_dolar(conc)
     avisos = []
     if ParametrosSistema.cargar().omitir_moneda_extranjera:
         avisos += [f"{a.nombre}: está en {a.moneda or 'moneda no informada'}; se omite (esta versión concilia en "
@@ -285,6 +314,7 @@ def _deshacer(conc: Conciliacion) -> None:
     conc.pendientes.filter(cierre__isnull=True).delete()
     PagoBordero.objects.filter(conciliacion=conc).update(conciliacion=None)
     conc.ventas.all().delete()
+    conc.ventas_usd.all().delete()
     conc.abonos.all().delete()
     conc.movimientos_cartola.all().delete()
 
@@ -373,6 +403,8 @@ def _medio_de_pago(cod_deb: str, params: Parametros) -> str:
 @transaction.atomic
 def procesar(conc: Conciliacion) -> Conciliacion:
     _deshacer(conc)
+    if conc.moneda == Conciliacion.USD:
+        return _procesar_dolar(conc)
     params = parametros_actuales()
     archivos = utilizables(conc)
 
@@ -555,6 +587,100 @@ def calcular_resumen(conc: Conciliacion, params: Parametros, pagos_del_mes: set)
         "n_invalidos_bordero": PagoBordero.objects.filter(id__in=pagos_del_mes, invalido=True).count(),
         "cartola_sin_archivo": {"n": len(sin_archivo), "monto": sum(m.abono for m in sin_archivo)},
     }
+
+
+def _validar_dolar(conc: Conciliacion) -> list[str]:
+    """Una conciliación en dólares necesita el abono Transbank US$, el ERP y la cartera de cada tarjeta vendida.
+    Ningún archivo se omite por su moneda; los del flujo en pesos (bordero, Transbank 'Abonos por día') no van aquí."""
+    archivos = list(conc.archivos.all())
+    errores = [f"{a.nombre}: {a.error}" for a in archivos if a.error]
+    validos = [a for a in archivos if not a.error]
+    errores += [f"{a.nombre}: es un archivo de la conciliación en pesos ({a.get_tipo_display()}); quítalo."
+                for a in validos if a.tipo in (ArchivoCargado.BORDERO, ArchivoCargado.TRANSBANK)]
+    abonos = [a for a in validos if a.tipo == ArchivoCargado.ABONO_USD]
+    for tipo, nombre in [(ArchivoCargado.ABONO_USD, "el abono Transbank US$"), (ArchivoCargado.ERP, "el ERP de tarjetas")]:
+        if not any(a.tipo == tipo for a in validos):
+            errores.append(f"Falta {nombre}.")
+    for dia, n in Counter(a.fecha_abono for a in abonos).items():
+        if n > 1:
+            errores.append(f"Hay {n} abonos Transbank US$ del {fmt_fecha(dia)}; quita el repetido.")
+    carteras = Counter(a.resumen.get("marca") for a in validos if a.tipo == ArchivoCargado.EMISOR)
+    for marca, n in carteras.items():
+        if n > 1:
+            errores.append(f"Hay {n} carteras de {usd.TARJETAS[marca]} US$; quita la repetida.")
+    for marca in sorted({t for a in abonos for t in a.resumen.get("tarjetas", [])} - set(carteras)):
+        errores.append(f"Falta la cartera de {usd.TARJETAS[marca]} US$ (hay ventas con esa tarjeta).")
+    return errores
+
+
+def _advertencias_dolar(conc: Conciliacion) -> list[str]:
+    archivos = utilizables(conc)
+    cartolas = [(a.desde, a.hasta) for a in archivos if a.tipo == ArchivoCargado.CARTOLA]
+    if not cartolas:
+        return ["No se cargó la cartola US$: no se verificará que el abono llegó al banco."]
+    return [f"{a.nombre}: la cartola no cubre el abono del {fmt_fecha(a.fecha_abono)}." for a in archivos
+            if a.tipo == ArchivoCargado.ABONO_USD and not any(d <= a.fecha_abono <= h for d, h in cartolas)]
+
+
+def _procesar_dolar(conc: Conciliacion) -> Conciliacion:
+    """Cruza las ventas del abono Transbank US$ con el ERP y las carteras, y verifica cada abono en la cartola US$."""
+    archivos = utilizables(conc)
+    del_tipo = lambda tipo: [ac for ac in archivos if ac.tipo == tipo]  # noqa: E731
+    abonos = [(ac, leer_abono_dolar(ac.archivo.path)) for ac in del_tipo(ArchivoCargado.ABONO_USD)]
+    erp = pd.concat([leer_erp(ac.archivo.path) for ac in del_tipo(ArchivoCargado.ERP)], ignore_index=True)
+    carteras = {c.marca: c.documentos for c in (leer_cartera(ac.archivo.path) for ac in del_tipo(ArchivoCargado.EMISOR))}
+
+    ventas = []
+    for ac, a in abonos:
+        if a.ventas.empty:
+            continue
+        for v, r in zip(a.ventas.to_dict("records"), usd.conciliar_ventas_dolar(a.ventas, erp, carteras)):
+            ventas.append(VentaDolar(conciliacion=conc, archivo=ac, fila=v["fila"], tarjeta=v["tarjeta"],
+                                     fecha_venta=v["fecha_venta"], hora=v["hora"],
+                                     codigo_autorizacion=v["codigo_autorizacion"],
+                                     monto_original=v["monto_original"], comision=v["comision"], **r))
+    VentaDolar.objects.bulk_create(ventas)
+
+    cartolas = [leer_cartola(ac.archivo.path, monto=a_decimal) for ac in del_tipo(ArchivoCargado.CARTOLA)]
+    if cartolas:
+        movimientos = pd.concat([c.movimientos for c in cartolas], ignore_index=True)
+        verificados = [usd.verificar_abono(a.resumen["abono"], a.fecha_abono, movimientos) for _, a in abonos]
+    else:
+        verificados = [{"monto": str(a.resumen["abono"]), "fecha_abono": a.fecha_abono.isoformat(), "en_cartola": None,
+                        "cartola_fecha": None, "cartola_descripcion": "",
+                        "mensaje": "No se cargó la cartola US$ para verificar este abono."} for _, a in abonos]
+
+    conc.parametros = {"moneda": Conciliacion.USD}  # no vacío: si se vacía, no se reutiliza como borrador nuevo
+    conc.resumen = resumen_dolar(ventas, verificados)
+    conc.estado = Conciliacion.PROCESADA
+    conc.procesada_en = timezone.now()
+    conc.save()
+    return conc
+
+
+def resumen_dolar(ventas: list[VentaDolar], abonos: list[dict]) -> dict:
+    """Totales por tarjeta y del abono (en float: el JSON no guarda Decimal; los centavos exactos están en VentaDolar).
+    `total` usa las mismas claves que en pesos para que el historial lo muestre igual."""
+    cero = {"n_ventas": 0, "n_falla": 0, "ventas": Decimal(0), "conciliado": Decimal(0), "cartera": Decimal(0)}
+    por_tarjeta = {t: dict(cero) for t in usd.TARJETAS}
+    for v in ventas:
+        r = por_tarjeta[v.tarjeta]
+        r["n_ventas"] += 1
+        r["ventas"] += v.monto_original
+        if v.es_falla:
+            r["n_falla"] += 1
+        else:
+            r["conciliado"] += v.monto_original
+            r["cartera"] += v.monto_cartera or 0
+    for r in por_tarjeta.values():
+        r["diferencia"] = r["conciliado"] - r["cartera"]
+    total = {k: sum(r[k] for r in por_tarjeta.values()) for k in [*cero, "diferencia"]}
+    abono_tbk = sum(Decimal(a["monto"]) for a in abonos)
+    abono_cartola = sum(Decimal(a["monto"]) for a in abonos if a["en_cartola"])
+    total |= {"abono_tbk": abono_tbk, "abono_cartola": abono_cartola, "diferencial": abono_tbk - abono_cartola}
+    a_float = lambda d: {k: float(round(v, 2)) if isinstance(v, Decimal) else v for k, v in d.items()}  # noqa: E731
+    return {"tarjetas": {t: a_float(r) for t, r in por_tarjeta.items() if r["n_ventas"]}, "total": a_float(total),
+            "abonos": abonos, "n_pendientes": 0}
 
 
 def cartola_sin_archivo(conc: Conciliacion) -> list[MovimientoCartola]:

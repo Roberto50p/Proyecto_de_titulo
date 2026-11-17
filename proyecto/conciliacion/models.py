@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from .lectores.comunes import clave
 from .motor import categorias as cat
+from .motor import dolar as usd
 from .motor.parametros import REGLAS_MEDIO_CARTOLA_INICIALES, escribir_reglas_medio
 
 MEDIO_CHOICES = [(m, cat.ETIQUETA_MEDIO[m]) for m in cat.MEDIOS]
@@ -50,8 +51,11 @@ class EquivalenciaMedio(models.Model):
 class Conciliacion(models.Model):
     BORRADOR, PROCESADA = "BORRADOR", "PROCESADA"
     ESTADOS = [(BORRADOR, "Borrador"), (PROCESADA, "Procesada")]
+    CLP, USD = "CLP", "USD"
+    MONEDAS = [(CLP, "Pesos"), (USD, "Dólares")]
 
     estado = models.CharField(max_length=10, choices=ESTADOS, default=BORRADOR)
+    moneda = models.CharField(max_length=3, choices=MONEDAS, default=CLP)
     parametros = models.JSONField(default=dict, blank=True)
     resumen = models.JSONField(default=dict, blank=True)
     creada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
@@ -72,7 +76,7 @@ class Conciliacion(models.Model):
         "Conciliación del 01/11/2026 al 05/11/2026". Si otra conciliación tiene el mismo período se agrega la fecha
         de creación para distinguirlas. Usa archivos.all() para aprovechar prefetch_related."""
         dias = sorted({a.fecha_abono for a in self.archivos.all()
-                       if a.tipo == ArchivoCargado.TRANSBANK and a.fecha_abono and not a.error})
+                       if a.tipo in ArchivoCargado.ABONOS and a.fecha_abono and not a.error})
         if not dias:
             return "Conciliación sin abonos cargados"
         desde, hasta = dias[0], dias[-1]
@@ -82,8 +86,8 @@ class Conciliacion(models.Model):
         return nombre
 
     def _periodo_repetido(self, desde, hasta) -> bool:
-        validos = Q(archivos__tipo=ArchivoCargado.TRANSBANK, archivos__error="", archivos__fecha_abono__isnull=False)
-        return (Conciliacion.objects.exclude(pk=self.pk)
+        validos = Q(archivos__tipo__in=ArchivoCargado.ABONOS, archivos__error="", archivos__fecha_abono__isnull=False)
+        return (Conciliacion.objects.exclude(pk=self.pk).filter(moneda=self.moneda)
                 .annotate(p_desde=Min("archivos__fecha_abono", filter=validos),
                           p_hasta=Max("archivos__fecha_abono", filter=validos))
                 .filter(p_desde=desde, p_hasta=hasta).exists())
@@ -94,7 +98,11 @@ class Conciliacion(models.Model):
 
 class ArchivoCargado(models.Model):
     TRANSBANK, BORDERO, CARTOLA, DESCONOCIDO = "transbank", "bordero", "cartola", "desconocido"
-    TIPOS = [(TRANSBANK, "Transbank"), (BORDERO, "Bordero"), (CARTOLA, "Cartola"), (DESCONOCIDO, "No reconocido")]
+    ABONO_USD, ERP, EMISOR = "abono_usd", "erp", "emisor"
+    TIPOS = [(TRANSBANK, "Transbank"), (BORDERO, "Bordero"), (CARTOLA, "Cartola"),
+             (ABONO_USD, "Abono Transbank US$"), (ERP, "ERP tarjetas"), (EMISOR, "Cartera de la tarjeta US$"),
+             (DESCONOCIDO, "No reconocido")]
+    ABONOS = (TRANSBANK, ABONO_USD)  # tipos que dan la fecha de abono (nombre de la conciliación)
 
     conciliacion = models.ForeignKey(Conciliacion, related_name="archivos", on_delete=models.CASCADE)
     tipo = models.CharField(max_length=12, choices=TIPOS, default=DESCONOCIDO)
@@ -131,8 +139,9 @@ class ArchivoCargado(models.Model):
 
     @property
     def moneda_extranjera(self) -> bool:
-        """Transbank o cartola cuya moneda no es pesos (esta versión concilia solo pesos)."""
-        return self.tipo in (self.TRANSBANK, self.CARTOLA) and not clave(self.moneda).startswith("pesos")
+        """Transbank o cartola cuya moneda no es pesos en una conciliación en pesos. En dólares no se omite ninguno."""
+        return (self.conciliacion.moneda == Conciliacion.CLP and self.tipo in (self.TRANSBANK, self.CARTOLA)
+                and not clave(self.moneda).startswith("pesos"))
 
 
 class CoberturaBordero(models.Model):
@@ -246,6 +255,41 @@ class ResultadoAbono(models.Model):
     @property
     def tipo(self) -> str:
         return cat.TIPO.get(self.categoria, "")
+
+
+class VentaDolar(models.Model):
+    """Venta en dólares del abono Transbank US$, cruzada con el ERP (código de autorización) y la cartera de la
+    tarjeta (documento del ERP). Montos en dólares con centavos; el ERP y la cartera registran el pago en pesos."""
+
+    TARJETAS = list(usd.TARJETAS.items())
+    OK, SIN_ERP, SIN_CARTERA, SALDO_DISTINTO = usd.OK, usd.SIN_ERP, usd.SIN_CARTERA, usd.SALDO_DISTINTO
+    CATEGORIAS = [(OK, "Conciliada"), (SIN_ERP, "No está en el ERP"), (SIN_CARTERA, "No está en la cartera"),
+                  (SALDO_DISTINTO, "Saldo distinto en la cartera")]
+
+    conciliacion = models.ForeignKey(Conciliacion, related_name="ventas_usd", on_delete=models.CASCADE)
+    archivo = models.ForeignKey(ArchivoCargado, related_name="ventas_usd", on_delete=models.CASCADE)
+    fila = models.PositiveIntegerField(default=0)
+    tarjeta = models.CharField(max_length=2, choices=TARJETAS)
+    fecha_venta = models.DateField()
+    hora = models.CharField(max_length=5, blank=True)
+    codigo_autorizacion = models.CharField(max_length=30, blank=True)
+    monto_original = models.DecimalField(max_digits=14, decimal_places=2)
+    comision = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # Resultado
+    documento = models.CharField("Documento ERP", max_length=30, blank=True)
+    valor_erp = models.BigIntegerField("Valor ERP (CLP)", null=True, blank=True)
+    monto_cartera = models.DecimalField("Otra moneda en la cartera", max_digits=14, decimal_places=2, null=True,
+                                        blank=True)
+    diferencia = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    categoria = models.CharField(max_length=20, choices=CATEGORIAS)
+    mensaje = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["tarjeta", "fecha_venta", "hora", "fila"]
+
+    @property
+    def es_falla(self) -> bool:
+        return self.categoria != self.OK
 
 
 class MovimientoCartola(models.Model):

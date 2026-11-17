@@ -1,17 +1,17 @@
 {% if pagina.has_other_pages %}
-{% with filtro=medio_filtro|urlencode %}
+{% with filtro=filtros %}
 <nav class="paginacion" aria-label="{{ etiqueta }}">
   {% if pagina.has_previous %}
-    <a class="boton" href="?{% if filtro %}medio={{ filtro }}&amp;{% endif %}page=1">« Primera</a>
-    <a class="boton" href="?{% if filtro %}medio={{ filtro }}&amp;{% endif %}page={{ pagina.previous_page_number }}" rel="prev">‹ Anterior</a>
+    <a class="boton" href="?{% if filtro %}{{ filtro }}&amp;{% endif %}page=1">« Primera</a>
+    <a class="boton" href="?{% if filtro %}{{ filtro }}&amp;{% endif %}page={{ pagina.previous_page_number }}" rel="prev">‹ Anterior</a>
   {% else %}
     <span class="boton" aria-disabled="true">« Primera</span>
     <span class="boton" aria-disabled="true">‹ Anterior</span>
   {% endif %}
   <span class="paginacion-estado" aria-current="page">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }} · {{ pagina.start_index }}–{{ pagina.end_index }} de {{ pagina.paginator.count }}</span>
   {% if pagina.has_next %}
-    <a class="boton" href="?{% if filtro %}medio={{ filtro }}&amp;{% endif %}page={{ pagina.next_page_number }}" rel="next">Siguiente ›</a>
-    <a class="boton" href="?{% if filtro %}medio={{ filtro }}&amp;{% endif %}page={{ pagina.paginator.num_pages }}">Última »</a>
+    <a class="boton" href="?{% if filtro %}{{ filtro }}&amp;{% endif %}page={{ pagina.next_page_number }}" rel="next">Siguiente ›</a>
+    <a class="boton" href="?{% if filtro %}{{ filtro }}&amp;{% endif %}page={{ pagina.paginator.num_pages }}">Última »</a>
   {% else %}
     <span class="boton" aria-disabled="true">Siguiente ›</span>
     <span class="boton" aria-disabled="true">Última »</span>

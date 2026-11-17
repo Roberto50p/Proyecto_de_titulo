@@ -14,17 +14,6 @@
     <a class="boton" href="{% url 'conciliacion:lista' %}">Ver historial</a>
   </div>
 </section>
-{% comment %}
-<!-- <dialog id="elegir-monedanono" class="n-dialogo dialog" aria-labelledby="elegir-moneda-titulo">
-  <h2 id="elegir-moneda-titulo">Nueva conciliación</h2>
-  <p class="n-ayuda">¿En qué moneda es la conciliación?</p>
-  <div class="n-acciones">
-    <form method="dialog"><button type="submit" class="boton">Cancelar</button></form>
-    <a class="boton boton-principal" href="{% url 'PR' %}">Dólar</a>
-    <a class="boton boton-principal" href="{% url 'conciliacion:clp' %}">Pesos</a>
-  </div>
-</dialog> -->
-{% endcomment %}
 
 <dialog class="n-dialogo dialog" aria-labelledby="elegir-moneda-titulo" id="elegir-moneda">
   <div class="dialog-header">
@@ -32,7 +21,7 @@
     <p class="n-ayuda">¿En qué moneda es la conciliación?</p>
   </div>
   <div class="dialog-body">
-    <a class="boton boton-principal fg-emphasis-success" href="{% url 'PR' %}"><i class="bi bi-currency-dollar"></i>Dólar</a>
+    <a class="boton boton-principal fg-emphasis-success" href="{% url 'conciliacion:usd' %}"><i class="bi bi-currency-dollar"></i>Dólar</a>
     <a class="boton boton-principal fg-emphasis-primary" href="{% url 'conciliacion:clp' %}"><i class="bi bi-coin"></i>Pesos</a>
   </div>
   <div class="n-acciones">

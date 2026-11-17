@@ -58,7 +58,7 @@ def _fila_encabezado(hoja) -> int | None:
     return None
 
 
-def _movimientos(hoja: pd.DataFrame, fila_enc: int) -> pd.DataFrame:
+def _movimientos(hoja: pd.DataFrame, fila_enc: int, monto=a_entero) -> pd.DataFrame:
     columnas = {}
     for col in range(hoja.shape[1]):
         k = clave(hoja.iat[fila_enc, col]).split(" (")[0]
@@ -80,9 +80,9 @@ def _movimientos(hoja: pd.DataFrame, fila_enc: int) -> pd.DataFrame:
             "descripcion": texto(hoja.iat[fila, columnas["descripcion"]]),
             "canal": texto(hoja.iat[fila, columnas["canal"]]) if "canal" in columnas else "",
             "nro_docto": texto(hoja.iat[fila, columnas["nro_docto"]]) if "nro_docto" in columnas else "",
-            "cargo": a_entero(hoja.iat[fila, columnas["cargo"]]),
-            "abono": a_entero(hoja.iat[fila, columnas["abono"]]),
-            "saldo": a_entero(hoja.iat[fila, columnas["saldo"]]),
+            "cargo": monto(hoja.iat[fila, columnas["cargo"]]),
+            "abono": monto(hoja.iat[fila, columnas["abono"]]),
+            "saldo": monto(hoja.iat[fila, columnas["saldo"]]),
         })
     movimientos = pd.DataFrame(filas)
     if movimientos.empty:
@@ -90,7 +90,7 @@ def _movimientos(hoja: pd.DataFrame, fila_enc: int) -> pd.DataFrame:
     return movimientos
 
 
-def _banco_de_chile(hoja: pd.DataFrame) -> ArchivoCartola:
+def _banco_de_chile(hoja: pd.DataFrame, monto) -> ArchivoCartola:
     fila_enc = _fila_encabezado(hoja)
     pos_cuenta = buscar_celda(hoja, "Cuenta N")
     if fila_enc is None or pos_cuenta is None:
@@ -98,11 +98,11 @@ def _banco_de_chile(hoja: pd.DataFrame) -> ArchivoCartola:
     cuenta = texto(valor_a_la_derecha(hoja, *pos_cuenta))
     pos_moneda = buscar_celda(hoja, "Moneda:")
     moneda = texto(valor_a_la_derecha(hoja, *pos_moneda)) if pos_moneda else ""
-    movimientos = _movimientos(hoja, fila_enc)
+    movimientos = _movimientos(hoja, fila_enc, monto)
     return ArchivoCartola(BANCO_DE_CHILE, cuenta, moneda, movimientos.fecha.min(), movimientos.fecha.max(), movimientos)
 
 
-def _bancoestado(libro: dict[str, pd.DataFrame]) -> ArchivoCartola:
+def _bancoestado(libro: dict[str, pd.DataFrame], monto) -> ArchivoCartola:
     resumen = next(iter(libro.values()))
 
     def dato(etiqueta):
@@ -112,7 +112,7 @@ def _bancoestado(libro: dict[str, pd.DataFrame]) -> ArchivoCartola:
     tablas = [(h, f) for h in libro.values() if (f := _fila_encabezado(h)) is not None]
     if not tablas:
         raise ArchivoNoReconocido("La cartola de BancoEstado no trae la hoja 'Movimientos'.")
-    movimientos = _movimientos(*tablas[0])
+    movimientos = _movimientos(*tablas[0], monto)
     # La cartola no informa la moneda; los saldos de una cuenta en pesos vienen como "$144.501.293".
     moneda = "Pesos" if texto(dato("Saldo Inicial")).startswith("$") else "No informada"
     try:
@@ -122,9 +122,10 @@ def _bancoestado(libro: dict[str, pd.DataFrame]) -> ArchivoCartola:
     return ArchivoCartola(BANCOESTADO, texto(dato("N° Cuenta Corriente")), moneda, desde, hasta, movimientos)
 
 
-def leer_cartola(archivo) -> ArchivoCartola:
+def leer_cartola(archivo, monto=a_entero) -> ArchivoCartola:
+    """`monto` convierte cargos, abonos y saldos: a_entero (pesos) o a_decimal (dólares con centavos)."""
     libro = leer_libro(archivo)
     primera = next(iter(libro.values()))
     if es_bancoestado(primera):
-        return _bancoestado(libro)
-    return _banco_de_chile(primera)
+        return _bancoestado(libro, monto)
+    return _banco_de_chile(primera, monto)

@@ -1,6 +1,7 @@
 """Mensajes por registro: qué pasó y qué hacer, en lenguaje del analista."""
 
 from datetime import date
+from decimal import Decimal
 
 from . import categorias as c
 
@@ -10,6 +11,15 @@ def pesos(monto) -> str:
         return "-"
     signo = "-" if monto < 0 else ""
     return f"{signo}${abs(int(monto)):,}".replace(",", ".")
+
+
+def dolares(monto) -> str:
+    """Decimal(1234.5) -> 'US$ 1.234,50' (separadores chilenos, como pesos())."""
+    if monto is None or monto == "":
+        return "-"
+    monto = Decimal(str(monto))
+    signo = "-" if monto < 0 else ""
+    return f"{signo}US$ {abs(monto):,.2f}".translate(str.maketrans(",.", ".,"))
 
 
 def fecha(valor: date | None) -> str:

@@ -4,6 +4,7 @@ import io
 import re
 import unicodedata
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import pandas as pd
@@ -86,21 +87,26 @@ def parse_fecha_dmy(valor) -> date:
     return datetime.strptime(texto(valor), "%d/%m/%Y").date()
 
 
-def a_entero(valor) -> int:
-    """Monto a entero CLP (vacío -> 0). Acepta '16.258.428,00' y números."""
+def a_decimal(valor) -> Decimal:
+    """Monto con centavos (vacío o ilegible -> 0). Acepta '16.258.428,00', 'US$ 12,50' y números."""
     if es_vacio(valor):
-        return 0
+        return Decimal(0)
     if isinstance(valor, (int, float)):
-        return int(round(valor))
-    limpio = texto(valor).replace("$", "").replace(" ", "")
+        return Decimal(str(valor))  # str: 426.39 queda 426.39 y no 426.3899999…
+    limpio = texto(valor).replace("US$", "").replace("$", "").replace(" ", "")
     if "," in limpio:
         limpio = limpio.replace(".", "").replace(",", ".")
     elif limpio.count(".") > 1 or re.fullmatch(r"-?\d{1,3}(\.\d{3})+", limpio):
         limpio = limpio.replace(".", "")
     try:
-        return int(round(float(limpio)))
-    except ValueError:
-        return 0
+        return Decimal(limpio)
+    except InvalidOperation:
+        return Decimal(0)
+
+
+def a_entero(valor) -> int:
+    """Monto a entero CLP (vacío -> 0). Acepta '16.258.428,00' y números."""
+    return int(round(a_decimal(valor)))
 
 
 # Registro BOF de Excel 2.x, 3.0 y 4.0 sin contenedor OLE (así exporta FrontOffice el bordero ".XLS").

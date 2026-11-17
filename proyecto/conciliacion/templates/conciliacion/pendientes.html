@@ -11,6 +11,16 @@
   <p class="n-ayuda">{{ total }} pendientes abiertos: pagos con tarjeta del bordero que Transbank todavía no abona. Se cierran solos cuando aparece su venta en una conciliación posterior.</p>
 
   <form method="get" class="filtros">
+    {# conservan el otro filtro; van antes de los botones porque request.GET.get toma el último valor (el del botón) #}
+    <input type="hidden" name="medio" value="{{ medio_filtro }}">
+    <input type="hidden" name="moneda" value="{{ moneda_filtro }}">
+    <div class="campo">
+      <span id="moneda-etiqueta" class="campo-etiqueta">Moneda</span>
+      <div class="grupo-medios" role="group" aria-labelledby="moneda-etiqueta">
+        {# como radio: siempre hay una moneda elegida (CLP por defecto) #}
+        {% for m in monedas %}<button type="submit" name="moneda" value="{{ m }}" class="boton moneda" aria-pressed="{% if m == moneda_filtro %}true{% else %}false{% endif %}">{{ m }}</button>{% endfor %}
+      </div>
+    </div>
     <div class="campo">
       <span id="medio-etiqueta" class="campo-etiqueta">Medio de pago</span>
       <div class="grupo-medios" role="group" aria-labelledby="medio-etiqueta">

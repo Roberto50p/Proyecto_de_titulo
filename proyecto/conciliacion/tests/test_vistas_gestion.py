@@ -2,7 +2,9 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from conciliacion.models import EquivalenciaMedio, Pendiente
+from datetime import date
+
+from conciliacion.models import ArchivoCargado, Conciliacion, EquivalenciaMedio, PagoBordero, Pendiente
 from conciliacion.servicio import parametros_actuales
 
 PARAMETROS = {"tolerancia_clp": 200, "umbral_similitud": 0.8, "dias_holgura": 2, "ventana_dias": 3,
@@ -40,7 +42,42 @@ def test_pendientes_paginados_de_a_30(cliente, septiembre_procesado):
     assert "Página 5 de 5" in cliente.get(url, {"page": "999"}).content.decode()  # fuera de rango: última
     medio = Pendiente.objects.filter(abierto=True).values_list("medio", flat=True).first()
     filtrado = cliente.get(url, {"medio": medio}).content.decode()
-    assert f"medio={medio}&amp;page=" in filtrado or 'class="paginacion"' not in filtrado  # el filtro se mantiene
+    # el filtro se mantiene (la moneda siempre va: CLP por defecto)
+    assert f"medio={medio}&amp;moneda=CLP&amp;page=" in filtrado or 'class="paginacion"' not in filtrado
+
+
+def test_filtro_moneda_en_historial_y_pendientes(cliente):
+    """La moneda sale de ArchivoCargado.moneda ("Pesos chilenos" / "Dólares"); el bordero no la informa."""
+    def conciliacion(moneda, dia, documento):
+        c = Conciliacion.objects.create()
+        ArchivoCargado.objects.create(conciliacion=c, tipo="transbank", nombre=f"{documento}.xlsx", sha256=documento,
+                                      moneda=moneda, fecha_abono=date(2026, 9, dia), archivo="x.xlsx")
+        pago = PagoBordero.objects.create(cod_deb="VI", valor=1000, documento=documento, fecha=date(2026, 9, dia))
+        Pendiente.objects.create(pago=pago, medio="CREDITO", origen=c)
+        return c
+
+    clp, usd = conciliacion("Pesos chilenos", 1, "DOC-CLP"), conciliacion("Dólares", 2, "DOC-USD")
+    por_defecto = cliente.get(reverse("conciliacion:pendientes")).content.decode()
+    assert "DOC-CLP" in por_defecto and "DOC-USD" not in por_defecto  # sin elegir: CLP
+    assert 'value="CLP" class="boton moneda" aria-pressed="true"' in por_defecto
+    # En USD el grupo "Medio de pago" muestra las tarjetas; el medio en pesos se descarta al cambiar.
+    en_usd = cliente.get(reverse("conciliacion:pendientes"), {"moneda": "USD", "medio": "DEBITO"}).content.decode()
+    assert all(f">{t}</button>" in en_usd for t in ("Amex", "Diners", "Mastercard", "Visa"))
+    assert ">Débito</button>" not in en_usd and ">Débito</button>" in por_defecto
+    assert 'name="medio" value=""' in en_usd  # el hidden quedó vacío
+    for nombre, texto in (("conciliacion:lista", "etiqueta"), ("conciliacion:pendientes", "documento")):
+        valor = {"etiqueta": lambda c: c.etiqueta, "documento": lambda c: c.pendientes.get().pago.documento}[texto]
+        url = reverse(nombre)
+        solo_clp = cliente.get(url, {"moneda": "CLP"}).content.decode()
+        solo_usd = cliente.get(url, {"moneda": "USD"}).content.decode()
+        assert valor(clp) in solo_clp and valor(usd) not in solo_clp
+        assert valor(usd) in solo_usd and valor(clp) not in solo_usd
+
+    # Archivos en ambas monedas: la conciliación aparece en CLP y en USD.
+    ArchivoCargado.objects.create(conciliacion=clp, tipo="cartola", nombre="cartola-usd.xlsx", sha256="mixto",
+                                  moneda="Dólares", archivo="x.xlsx")
+    for moneda in ("CLP", "USD"):
+        assert clp.etiqueta in cliente.get(reverse("conciliacion:lista"), {"moneda": moneda}).content.decode()
 
 
 def test_comentar_pendiente(cliente, septiembre_procesado):
