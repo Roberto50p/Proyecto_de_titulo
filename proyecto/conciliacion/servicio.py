@@ -16,13 +16,14 @@ from django.utils import timezone
 
 from .lectores.bordero import leer_bordero
 from .lectores.cartola import leer_cartola
-from .lectores.comunes import ArchivoNoReconocido, clave
+from .lectores.comunes import ArchivoNoReconocido, clave, normalizar_codigo
 from .lectores.deteccion import detectar
 from .lectores.transbank import leer_transbank
 from .models import (
     ArchivoCargado,
     Conciliacion,
     CoberturaBordero,
+    CorreccionManual,
     EquivalenciaMedio,
     MovimientoCartola,
     PagoBordero,
@@ -280,45 +281,12 @@ def reemplazar(ac: ArchivoCargado) -> list[Conciliacion]:
 # ---------------------------------------------------------------- procesamiento
 
 
-def _clave_venta(categoria, codigo, fecha_venta) -> str:
-    return f"{categoria}|{codigo}|{fecha_venta.isoformat()}"
-
-
-def _clave_abono(medio, fecha_abono) -> str:
-    # Sin el archivo: la observación se mantiene aunque se reemplace el archivo Transbank del mismo día.
-    return f"{medio}|{fecha_abono.isoformat()}"
-
-
-def _guardar_observaciones(conc: Conciliacion) -> None:
-    """Lleva a conc.observaciones lo revisado/observado del resultado actual, sin perder lo guardado antes para
-    filas que hoy no están (por ejemplo, ventas de un archivo que se quitó y se volverá a subir)."""
-    guardadas = conc.observaciones or {}
-    filas = [
-        ("ventas", conc.ventas.all(), lambda v: _clave_venta(v.categoria, v.codigo_autorizacion, v.fecha_venta)),
-        ("abonos", conc.abonos.all(), lambda r: _clave_abono(r.medio, r.fecha_abono)),
-        ("pendientes", conc.pendientes.all(), lambda p: str(p.pago_id)),
-    ]
-    for grupo, registros, clave_de in filas:
-        grupo_guardado = guardadas.setdefault(grupo, {})
-        for r in registros:
-            if r.revisado or r.observacion:
-                grupo_guardado[clave_de(r)] = [r.revisado, r.observacion]
-            else:
-                grupo_guardado.pop(clave_de(r), None)
-    conc.observaciones = guardadas
-
-
-def _observacion(conc: Conciliacion, grupo: str, clave_registro: str) -> dict:
-    revisado, observacion = conc.observaciones.get(grupo, {}).get(clave_registro, (False, ""))
-    return {"revisado": revisado, "observacion": observacion}
-
-
 def _deshacer(conc: Conciliacion) -> None:
-    """Revierte el resultado anterior de la conciliación; sus observaciones quedan en conc.observaciones.
+    """Revierte el resultado anterior de la conciliación. Las correcciones manuales no se tocan: se vuelven a
+    aplicar al conciliar de nuevo.
 
     Los pendientes que ya cerró una conciliación posterior se mantienen: su historia pertenece a esa conciliación.
     """
-    _guardar_observaciones(conc)
     Pendiente.objects.filter(cierre=conc).update(abierto=True, cierre=None)
     conc.pendientes.filter(cierre__isnull=True).delete()
     PagoBordero.objects.filter(conciliacion=conc).update(conciliacion=None)
@@ -501,6 +469,11 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         "cuota_num": v.cuota_num, "cuota_total": v.cuota_total,
     } for i, v in enumerate(ventas_obj) if v.es_venta])
 
+    correcciones = {c.clave: c for c in conc.correcciones.all()}
+    corregidos = pagos_corregidos(ventas_obj, correcciones)
+    if not corregidos.empty:
+        pagos = pd.concat([pagos, corregidos], ignore_index=True) if not pagos.empty else corregidos
+
     if not ventas_df.empty:
         resultado = conciliar_ventas(ventas_df, pagos, cobertura, params)
         for r in resultado.to_dict("records"):
@@ -508,12 +481,19 @@ def procesar(conc: Conciliacion) -> Conciliacion:
             v.categoria, v.mensaje, v.nota = r["categoria"], r["mensaje"], r["nota"]
             v.codigo_sugerido = "" if pd.isna(r["codigo_sugerido"]) else r["codigo_sugerido"]
             if not pd.isna(r["pago_id"]):
-                v.pago = pagos_por_id[int(r["pago_id"])]
                 v.monto_bordero, v.diferencia = int(r["monto_bordero"]), int(r["diferencia"])
+                if r["pago_id"] > 0:
+                    v.pago = pagos_por_id[int(r["pago_id"])]
+                elif v.categoria == cat.OK:  # calzó con el dato que editó el analista
+                    c = correcciones[clave_venta(v)]
+                    v.categoria = cat.CORREGIDO
+                    v.mensaje = mensaje(cat.CORREGIDO, detalle=(
+                        f"Corrección manual verificada: documento {c.documento}, {pesos(c.monto)}, {c.cod_deb}."
+                        + (f" Comentario: {c.comentario}" if c.comentario else "")))
+                else:  # la corrección no calza: sigue siendo anomalía, con lo que dice el motor
+                    v.nota = "; ".join(filter(None, [v.nota, "la corrección guardada no calza"]))
     _cuotas_anteriores(conc, ventas_obj)
-    for v in ventas_obj:
-        guardada = _observacion(conc, "ventas", _clave_venta(v.categoria, v.codigo_autorizacion, v.fecha_venta))
-        v.revisado, v.observacion = guardada["revisado"], guardada["observacion"]
+    _aplicar_aceptadas(ventas_obj, correcciones)
     VentaTransbank.objects.bulk_create(ventas_obj)
 
     # Pagos usados quedan conciliados en esta conciliación; si eran pendientes, se cierran.
@@ -556,7 +536,6 @@ def procesar(conc: Conciliacion) -> Conciliacion:
         total_abono=r["total_abono"], categoria=r["categoria"], cartola_fecha=r["cartola_fecha"],
         cartola_descripcion=r["cartola_descripcion"], cartola_monto=r["cartola_monto"],
         diferencia=r["diferencia"], mensaje=r["mensaje"],
-        **_observacion(conc, "abonos", _clave_abono(r["medio"], r["fecha_abono"])),
     ) for r in resultados_abono])
 
     # Conciliación diaria: manda Transbank. Los pagos del bordero sin venta no se listan (sin pendientes);
@@ -572,6 +551,51 @@ def procesar(conc: Conciliacion) -> Conciliacion:
     conc.procesada_en = timezone.now()
     conc.save()
     return conc
+
+
+def clave_venta(v) -> tuple:
+    """Identidad de una venta para sus correcciones (la misma forma que CorreccionManual.clave)."""
+    return v.medio, v.codigo_norm, v.cuota_num or 0, v.fecha_venta, v.monto_original
+
+
+def pagos_corregidos(ventas: list[VentaTransbank], correcciones: dict) -> pd.DataFrame:
+    """Un pago del bordero por cada corrección con datos, con id negativo para distinguirlo de los reales.
+    Lleva el código de la venta: el cruce lo prefiere frente a los pagos reales con el mismo código."""
+    filas = []
+    for v in ventas:
+        c = correcciones.get(clave_venta(v))
+        if c is None or c.aceptada or c.monto is None:
+            continue
+        filas.append({"id": -c.pk, "documento": c.documento, "documento_norm": normalizar_codigo(c.documento),
+                      "valor": -abs(c.monto), "fecha": c.fecha_bordero or v.fecha_venta, "cod_deb": c.cod_deb,
+                      "pendiente_mes": None, "corregido": True})
+    return pd.DataFrame(filas)
+
+
+def guardar_correccion(venta: VentaTransbank, datos: dict) -> CorreccionManual:
+    """Crea o edita la corrección de una venta anómala. La copia del dato original se toma solo al crearla.
+    `datos`: documento, monto, cod_deb, fecha_bordero, aceptada y comentario (ya validados por el formulario)."""
+    pago = venta.pago
+    original = {
+        "codigo_autorizacion": venta.codigo_autorizacion, "local": venta.local,
+        "categoria_original": venta.categoria, "mensaje_original": venta.mensaje,
+        "documento_original": venta.codigo_sugerido or (pago.documento if pago else ""),
+        "monto_bordero_original": venta.monto_bordero, "cod_deb_original": pago.cod_deb if pago else "",
+    }
+    medio, codigo_norm, cuota_num, fecha_venta, monto_original = clave_venta(venta)
+    c, _ = CorreccionManual.objects.update_or_create(
+        conciliacion=venta.conciliacion, medio=medio, codigo_norm=codigo_norm, cuota_num=cuota_num,
+        fecha_venta=fecha_venta, monto_original=monto_original, defaults=datos, create_defaults=original | datos)
+    return c
+
+
+def _aplicar_aceptadas(ventas: list[VentaTransbank], correcciones: dict) -> None:
+    """Anomalía aceptada por el analista sin corregir datos: queda corregida y su comentario es la evidencia."""
+    for v in ventas:
+        c = correcciones.get(clave_venta(v))
+        if c is not None and c.aceptada and v.categoria in cat.POR_RESOLVER:
+            v.categoria = cat.CORREGIDO
+            v.mensaje = mensaje(cat.CORREGIDO, detalle=f"Aceptada por el analista: {c.comentario}")
 
 
 def periodo_ventas(conc: Conciliacion) -> tuple:

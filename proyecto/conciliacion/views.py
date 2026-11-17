@@ -12,10 +12,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import servicio
-from .forms import FiltroDatosForm, ParametrosForm, RevisionForm
+from .forms import CorreccionForm, FiltroDatosForm, ParametrosForm
 from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
                      VentaTransbank)
 from .motor import categorias as cat
+from .motor.parametros import cod_deb_de_tarjeta
 from .reportes import excel, pdf, respaldo
 from .reportes.datos import armar
 
@@ -59,7 +60,7 @@ def nueva(request):
 
 def _borrador(request) -> Conciliacion:
     conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True)
-                 if not c.parametros and not c.observaciones), None)
+                 if not c.parametros and not c.correcciones.exists()), None)
     return conc or Conciliacion.objects.create(creada_por=request.user)
 
 
@@ -92,7 +93,7 @@ def _guardar_subidos(request, conc) -> None:
 
 def _aviso_reabierta(request, conc):
     messages.warning(request, f"{conc.etiqueta} volvió a borrador: conciliala de nuevo para ver el resultado con "
-                              "los archivos actuales. Tus observaciones se conservan.")
+                              "los archivos actuales. Tus correcciones se conservan.")
 
 
 def _con_duplicados(conc, choques: dict | None = None) -> list[ArchivoCargado]:
@@ -117,7 +118,7 @@ def _acciones_archivos(request, conc) -> None:
         ac = get_object_or_404(ArchivoCargado, pk=request.POST["reemplazar"], conciliacion=conc)
         for otra in servicio.reemplazar(ac):
             messages.warning(request, f"Se quitó {ac.nombre} de {otra.etiqueta}, que volvió a borrador: "
-                                      "vuelve a conciliarla. Sus observaciones se conservan.")
+                                      "vuelve a conciliarla. Sus correcciones se conservan.")
     elif "quitar_todos" in request.POST:
         servicio.quitar_todos(conc)
         if procesada:
@@ -157,7 +158,7 @@ def procesar(request, pk):
         return redirect("conciliacion:revision", conc.pk)
     servicio.procesar(conc)
     messages.success(request, f"{conc.etiqueta} procesada.")
-    return redirect("conciliacion:detalle", conc.pk)
+    return redirect(_volver_seguro(request, reverse("conciliacion:detalle", args=[conc.pk])))
 
 
 # ------------------------------------------------------------------ resultado
@@ -178,8 +179,8 @@ def _contexto_resultado(request, conc) -> dict:
     filtro_cat = request.GET.get("categoria", "")
     filtro_local = request.GET.get("local", "")
 
-    # Sin filtro de categoría se muestran dos tablas: fallas (las que cuenta la pestaña) y avisos aparte.
-    registros, fallas, avisos, categorias, locales = [], [], [], [], []
+    # Sin filtro de categoría, una sola tabla "por revisar": primero las fallas y después los avisos.
+    registros, por_revisar, corregidas, categorias, locales = [], [], [], [], []
     capitulo = datos["capitulos"].get(vista)
     if capitulo:
         todos = capitulo["fallas"] + capitulo["avisos"] + capitulo["conciliados"]
@@ -190,16 +191,22 @@ def _contexto_resultado(request, conc) -> dict:
         if filtro_cat:
             registros = del_local([v for v in todos if v.categoria == filtro_cat])
         else:
-            fallas, avisos = del_local(capitulo["fallas"]), del_local(capitulo["avisos"])
+            por_revisar = del_local(capitulo["fallas"] + capitulo["avisos"])
+            corregidas = del_local([v for v in capitulo["conciliados"] if v.categoria == cat.CORREGIDO])
+        # Recuadro de corrección en cada venta anómala o ya corregida.
+        cod_debs = servicio.parametros_actuales().equivalencias
+        for v in registros + por_revisar + corregidas:
+            if v.categoria in cat.POR_RESOLVER or v.correccion:
+                v.form = form_correccion(v, cod_debs=cod_debs)
 
     pestanas = [{"clave": "resumen", "nombre": "Resumen", "n": None}]
     for m in cat.MEDIOS:
         pestanas.append({"clave": m, "nombre": cat.ETIQUETA_MEDIO[m],
-                         "n": datos["capitulos"][m]["resumen"].get("n_falla", 0)})
+                         "n": len(datos["capitulos"][m]["fallas"]) + len(datos["capitulos"][m]["avisos"])})
 
     return {
         "conc": conc, "d": datos, "vista": vista, "capitulo": capitulo, "registros": registros,
-        "fallas": fallas, "avisos": avisos,
+        "por_revisar": por_revisar, "corregidas": corregidas,
         "categorias": categorias, "locales": locales, "filtro_cat": filtro_cat, "filtro_local": filtro_local,
         "pestanas": pestanas,
         "fallas_todas": sorted((v for m in cat.MEDIOS for v in datos["capitulos"][m]["fallas"]),
@@ -240,17 +247,51 @@ def _volver_seguro(request, por_defecto: str) -> str:
     return por_defecto
 
 
+def form_correccion(venta, data=None, cod_debs=None) -> CorreccionForm:
+    """Formulario del recuadro: con la corrección guardada, o con el dato sugerido para corregir."""
+    c = getattr(venta, "correccion", None)
+    pago = venta.pago
+    if c:
+        inicial = {"documento": c.documento, "monto": c.monto, "cod_deb": c.cod_deb,
+                   "fecha_bordero": c.fecha_bordero, "aceptada": c.aceptada, "comentario": c.comentario}
+    else:  # el documento correcto es el código de Transbank; el resto, lo que tenga el bordero
+        inicial = {"documento": venta.codigo_autorizacion, "monto": venta.monto_original,
+                   "cod_deb": pago.cod_deb if pago else cod_deb_de_tarjeta(venta.tarjeta),
+                   "fecha_bordero": pago.fecha if pago else venta.fecha_venta}
+    return CorreccionForm(data, initial=inicial, categoria=c.categoria_original if c else venta.categoria,
+                          medio=venta.medio, cod_debs=cod_debs or servicio.parametros_actuales().equivalencias)
+
+
 @login_required
 @require_POST
-def revisar_venta(request, pk):
-    venta = get_object_or_404(VentaTransbank, pk=pk)
-    form = RevisionForm(request.POST)
+def corregir_venta(request, pk):
+    venta = get_object_or_404(VentaTransbank.objects.select_related("pago", "conciliacion"), pk=pk)
+    venta.correccion = venta.conciliacion.correcciones.filter(
+        **dict(zip(["medio", "codigo_norm", "cuota_num", "fecha_venta", "monto_original"],
+                   servicio.clave_venta(venta)))).first()
+    volver = _volver_seguro(request, reverse("conciliacion:detalle", args=[venta.conciliacion_id]))
+    fila, recuadro = f"{volver}#v{venta.pk}", f"{volver}#c{venta.pk}"  # al guardar se cierra; si falla, sigue abierto
+    if request.POST.get("accion") == "quitar":
+        if venta.correccion:
+            venta.correccion.delete()
+            messages.info(request, f"Se quitó la corrección de {venta.codigo_autorizacion}. "
+                                   "Vuelve a conciliar para verlo reflejado.")
+        return redirect(fila)
+    if not venta.correccion and venta.categoria not in cat.POR_RESOLVER:
+        messages.error(request, f"La venta {venta.codigo_autorizacion} no tiene anomalías que corregir.")
+        return redirect(volver)
+    form = form_correccion(venta, request.POST)
     if form.is_valid():
-        venta.revisado = form.cleaned_data["revisado"]
-        venta.observacion = form.cleaned_data["observacion"]
-        venta.save(update_fields=["revisado", "observacion"])
-        messages.success(request, f"Observación guardada para {venta.codigo_autorizacion}.")
-    return redirect(_volver_seguro(request, reverse("conciliacion:detalle", args=[venta.conciliacion_id])))
+        servicio.guardar_correccion(venta, {k: form.cleaned_data[k] for k in
+                                            ("documento", "monto", "cod_deb", "fecha_bordero", "aceptada",
+                                             "comentario")})
+        messages.success(request, f"Corrección de {venta.codigo_autorizacion} guardada. Presiona \"Volver a "
+                                  "conciliar\" para verificarla.")
+        return redirect(fila)
+        errores = "; ".join(f"{form.fields[k].label if k in form.fields else ''}: {' '.join(e)}"
+                            for k, e in form.errors.items())
+        messages.error(request, f"No se guardó la corrección de {venta.codigo_autorizacion}. {errores}")
+    return redirect(recuadro)
 
 
 @login_required

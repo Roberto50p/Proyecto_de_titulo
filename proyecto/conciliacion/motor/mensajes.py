@@ -18,17 +18,19 @@ def fecha(valor: date | None) -> str:
 
 PLANTILLAS = {
     c.OK: "Venta conciliada con el bordero.",
+    c.CORREGIDO: "{detalle}",
     c.DIF_MONTO: (
         "El código {codigo} está en el bordero, pero Transbank informa {monto_tbk} y el bordero {monto_bordero} "
         "(diferencia {diferencia}). Revisar el cobro con el detalle de la cuenta en FrontOffice."
     ),
     c.DIGITACION: (
         "El código {codigo} de Transbank no existe en el bordero; el más parecido es {sugerido} "
-        "({fecha_bordero}, {monto_bordero}). Corregir el documento en FrontOffice."
+        "({fecha_bordero}, {monto_bordero}). Informar al área responsable de FrontOffice para corregir el documento."
     ),
     c.SIN_BORDERO: (
         "Venta Transbank del {fecha_venta} por {monto_tbk} (código {codigo}, {local}) sin registro en el bordero. "
-        "Verificar si el pago se ingresó con otro medio o falta registrarlo."
+        "Verificar si el pago se ingresó con otro medio o falta registrarlo, e informar al área responsable de "
+        "FrontOffice."
     ),
     c.FUERA_PERIODO: (
         "Venta del {fecha_venta} fuera del período de los borderos cargados. "
@@ -40,7 +42,7 @@ PLANTILLAS = {
     ),
     c.MEDIO_DISTINTO: (
         "El bordero registró el pago como {cod_deb}, que no corresponde a {medio} según la tabla de equivalencias. "
-        "Confirmar el medio de pago."
+        "Confirmar el medio de pago e informar al área responsable de FrontOffice."
     ),
     c.SIN_ABONO: (
         "Pago con {cod_deb} del {fecha_bordero} por {monto_bordero} (documento {documento}) sin abono de Transbank "

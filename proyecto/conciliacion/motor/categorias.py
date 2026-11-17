@@ -7,6 +7,7 @@ COLOR_MEDIO = {DEBITO: "#1F5FA8", CREDITO: "#B7791F", PREPAGO: "#2F7D4F"}
 FONDO_MEDIO = {DEBITO: "#E8F0FA", CREDITO: "#FBF2E3", PREPAGO: "#E7F4EC"}
 
 OK = "OK"
+CORREGIDO = "CORREGIDO"
 DIF_MONTO = "DIF_MONTO"
 DIGITACION = "DIGITACION"
 SIN_BORDERO = "SIN_BORDERO"
@@ -19,6 +20,7 @@ DATO_INVALIDO = "DATO_INVALIDO"
 
 ETIQUETA = {
     OK: "Conciliado",
+    CORREGIDO: "Conciliado con corrección manual",
     DIF_MONTO: "Diferencia de monto",
     DIGITACION: "Error de digitación",
     SIN_BORDERO: "Venta Transbank sin registro en bordero",
@@ -33,6 +35,7 @@ ETIQUETA = {
 OPERACION, DATO, AVISO, PENDIENTE = "Operación", "Dato", "Aviso", "Pendiente"
 TIPO = {
     OK: "OK",
+    CORREGIDO: "OK",
     DIF_MONTO: OPERACION,
     DIGITACION: DATO,
     SIN_BORDERO: OPERACION,
@@ -48,8 +51,13 @@ GRAVEDAD = {OPERACION: 1, DATO: 2, PENDIENTE: 3, AVISO: 4, "OK": 5}
 
 # Orden de las filas de la matriz y de los listados.
 ORDEN_CATEGORIAS = [DIF_MONTO, SIN_BORDERO, ABONO_CARTOLA, DIGITACION, DATO_INVALIDO,
-                    MEDIO_DISTINTO, CUOTA, FUERA_PERIODO, OK]
+                    MEDIO_DISTINTO, CUOTA, FUERA_PERIODO, CORREGIDO, OK]
 CATEGORIAS_FALLA = {c for c, t in TIPO.items() if t in (OPERACION, DATO)}
+# Ventas cuyo monto queda "por resolver" hasta que el analista las corrige. Medio distinto también: el bordero
+# quedó con otro medio. Fuera de período y cuotas se resuelven cargando archivos, no corrigiendo.
+POR_RESOLVER = {DIF_MONTO, SIN_BORDERO, DIGITACION, MEDIO_DISTINTO, DATO_INVALIDO}
+# Anomalías que solo se pueden aceptar con un comentario: no hay dato del bordero que corregir y verificar.
+SOLO_ACEPTAR = {MEDIO_DISTINTO, DATO_INVALIDO}
 
 
 def es_falla(categoria: str) -> bool:

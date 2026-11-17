@@ -45,22 +45,36 @@ def test_equivalencias(cliente):
     assert parametros_actuales().medios_de("DUS$") == frozenset()
 
 
-def test_revisar_venta_vuelve_al_filtro(cliente, septiembre_procesado):
+def test_corregir_venta_desde_el_recuadro(cliente, septiembre_procesado):
+    conc = septiembre_procesado
+    v = conc.ventas.get(codigo_autorizacion="007626")
+    volver = reverse("conciliacion:detalle", args=[conc.pk]) + "?vista=DEBITO&categoria=DIF_MONTO"
+    html = cliente.get(volver).content.decode()
+    assert f'data-recuadro="c{v.pk}"' in html and "Resolver" in html and "Volver a conciliar" in html
+    r = cliente.post(reverse("conciliacion:corregir_venta", args=[v.pk]),
+                     {"accion": "guardar", "aceptada": "on", "comentario": "Propina cobrada aparte", "volver": volver})
+    assert r.status_code == 302 and r.url == f"{volver}#v{v.pk}"  # vuelve a la fila, con el recuadro cerrado
+    assert conc.correcciones.get().comentario == "Propina cobrada aparte"
+    html = cliente.get(volver).content.decode()
+    assert "Propina cobrada aparte" in html and "falta volver a conciliar" in html and "Quitar corrección" in html
+    assert "Editar" not in html
+    # Volver a conciliar desde la misma vista la verifica.
+    cliente.post(reverse("conciliacion:procesar", args=[conc.pk]), {"volver": volver})
+    assert conc.ventas.get(codigo_autorizacion="007626").categoria == "CORREGIDO"
+
+
+def test_corregir_sin_comentario_al_aceptar_no_guarda(cliente, septiembre_procesado):
     v = septiembre_procesado.ventas.get(codigo_autorizacion="007626")
-    volver = reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) + "?vista=DEBITO&categoria=DIF_MONTO"
-    r = cliente.post(reverse("conciliacion:revisar_venta", args=[v.pk]),
-                     {"observacion": "Propina cobrada aparte", "revisado": "on", "volver": volver})
-    assert r.status_code == 302 and r.url == volver
-    v.refresh_from_db()
-    assert v.observacion == "Propina cobrada aparte" and v.revisado
-    assert "Propina cobrada aparte" in cliente.get(volver).content.decode()
+    r = cliente.post(reverse("conciliacion:corregir_venta", args=[v.pk]), {"accion": "guardar", "aceptada": "on"})
+    assert not septiembre_procesado.correcciones.exists()
+    assert r.url.endswith(f"#c{v.pk}")  # si no se guardó, el recuadro vuelve abierto
 
 
-def test_revisar_venta_no_redirige_fuera(cliente, septiembre_procesado):
+def test_corregir_venta_no_redirige_fuera(cliente, septiembre_procesado):
     v = septiembre_procesado.ventas.first()
-    r = cliente.post(reverse("conciliacion:revisar_venta", args=[v.pk]),
-                     {"observacion": "x", "volver": "https://example.com/"})
-    assert r.url == reverse("conciliacion:detalle", args=[septiembre_procesado.pk])
+    r = cliente.post(reverse("conciliacion:corregir_venta", args=[v.pk]),
+                     {"accion": "quitar", "volver": "https://example.com/"})
+    assert r.url == reverse("conciliacion:detalle", args=[septiembre_procesado.pk]) + f"#v{v.pk}"
 
 
 def test_limpiar_base_borra_conciliaciones_y_conserva_parametros(client, septiembre_procesado):

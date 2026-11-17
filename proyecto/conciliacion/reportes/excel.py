@@ -1,7 +1,8 @@
-"""Reporte Excel: Resumen · Débito · Crédito · Cuotas · Prepago · Conciliados · Parámetros."""
+"""Reporte Excel: Resumen · Débito · Crédito · Cuotas · Prepago · Anomalías · Conciliados · Parámetros."""
 
 from io import BytesIO
 
+from django.utils import timezone
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -18,7 +19,7 @@ ENCABEZADO_FUENTE = Font(bold=True, color="FFFFFF")
 TIPO_COLOR = {"Operación": "B42318", "Dato": "6B3FA0", "Pendiente": "475467", "Aviso": "5B6675", "OK": "2F7D4F"}
 
 COLUMNAS_VENTA = ["Fecha venta", "Código", "Local", "Monto Transbank", "Monto bordero", "Diferencia", "Cuota",
-                  "Categoría", "Tipo", "Código sugerido", "Mensaje", "Nota", "Revisado", "Observación"]
+                  "Categoría", "Tipo", "Código sugerido", "Mensaje", "Nota", "Comentario del analista"]
 
 
 def _hex(color: str) -> str:
@@ -86,7 +87,7 @@ def _encabezado(h: Hoja, d: dict, titulo: str, color=None):
 def _fila_venta(v) -> list:
     return [v.fecha_venta, v.codigo_autorizacion, v.local, v.monto_original, v.monto_bordero, v.diferencia,
             v.cuota, cat.ETIQUETA.get(v.categoria, v.categoria), v.tipo, v.codigo_sugerido, v.mensaje, v.nota,
-            "Sí" if v.revisado else "", v.observacion]
+            v.correccion.comentario if v.correccion else ""]
 
 
 def _resumen(libro, d):
@@ -110,9 +111,7 @@ def _resumen(libro, d):
     filas = [[f["etiqueta"], f["tipo"], *[c["n"] for c in f["celdas"]], f["total_n"], f["total_monto"]]
              for f in d["matriz"]]
     h.tabla(columnas, filas, montos=["Monto total"], color_tipo_col="Tipo")
-    h.texto("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a Ventas Transbank."
-            if d["cuadra"] else "ATENCIÓN: la suma de las categorías no coincide con Ventas Transbank.",
-            negrita=not d["cuadra"])
+    h.texto(d["texto_cuadratura"], negrita=not d["cuadratura_ok"], color=None if d["cuadratura_ok"] else "#B42318")
     if d["cartola_sin_archivo"]:
         h.salto()
         h.texto(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])}): cargar los archivos "
@@ -142,7 +141,7 @@ def _capitulo(libro, d, medio):
     filas = [_fila_venta(v) for v in cap["fallas"] + cap["avisos"]]
     h.tabla(COLUMNAS_VENTA, filas, montos=["Monto Transbank", "Monto bordero", "Diferencia"],
             fechas=["Fecha venta"], filtro=True, congelar=True, color_tipo_col="Tipo",
-            anchos=[12, 12, 24, 15, 15, 12, 7, 26, 11, 15, 70, 26, 9, 30])
+            anchos=[12, 12, 24, 15, 15, 12, 7, 26, 11, 15, 70, 26, 40])
     if cap["otros"]:
         h.texto("Otros movimientos (no son ventas)", negrita=True)
         h.tabla(["Fecha venta", "Tipo de movimiento", "Código", "Monto"],
@@ -159,6 +158,49 @@ def _cuotas(libro, d):
               v.monto_original, v.monto_abono_valido, cat.ETIQUETA.get(v.categoria), v.mensaje] for v in d["cuotas"]]
     h.tabla(columnas, filas, montos=["Monto venta", "Monto de esta cuota"], fechas=["Fecha venta"],
             anchos=[12, 12, 10, 24, 7, 15, 18, 26, 70])
+
+
+def estado_anomalia(v, conc) -> str:
+    c = v.correccion
+    if c is None:
+        return "Sin resolver"
+    if v.categoria == cat.CORREGIDO:
+        return "Aceptada por el analista" if c.aceptada else "Corregida y verificada"
+    if conc.procesada_en is None or c.modificada > conc.procesada_en:
+        return "Guardada: falta volver a conciliar"
+    return "La corrección no calza: revisar"
+
+
+def _anomalias(libro, d):
+    """Anomalías de las ventas: el dato original (Transbank y bordero), lo que editó el analista y su comentario."""
+    h = Hoja(libro, "Anomalías")
+    _encabezado(h, d, f"Anomalías y correcciones manuales — {d['conciliacion'].etiqueta}")
+    pr = d["por_resolver"]
+    h.texto(f"Por resolver: {pr['n']} ventas por ${pr['monto']:,}.".replace(",", "."), negrita=bool(pr["n"]))
+    h.texto("Los archivos originales no se modifican: lo editado se guarda en el sistema y se verifica al volver a "
+            "conciliar.")
+    h.salto()
+    columnas = ["Medio", "Fecha venta", "Código Transbank", "Cuota", "Monto Transbank", "Local", "Categoría original",
+                "Documento bordero original", "Monto bordero original", "Cod. Deb. original", "Documento editado",
+                "Monto editado", "Cod. Deb. editado", "Fecha bordero editada", "Comentario del analista", "Estado",
+                "Categoría actual", "Corregida el"]
+    filas = []
+    for v in d["anomalias"]:
+        c = v.correccion
+        filas.append([
+            cat.ETIQUETA_MEDIO[v.medio], v.fecha_venta, v.codigo_autorizacion, v.cuota, v.monto_original, v.local,
+            cat.ETIQUETA.get(c.categoria_original if c else v.categoria),
+            c.documento_original if c else (v.codigo_sugerido or (v.pago.documento if v.pago else "")),
+            c.monto_bordero_original if c else v.monto_bordero,
+            c.cod_deb_original if c else (v.pago.cod_deb if v.pago else ""),
+            c.documento if c else "", c.monto if c else None, c.cod_deb if c else "",
+            c.fecha_bordero if c else None, c.comentario if c else "", estado_anomalia(v, d["conciliacion"]),
+            cat.ETIQUETA.get(v.categoria, v.categoria),
+            f"{timezone.localtime(c.modificada):%d/%m/%Y %H:%M}" if c else "",
+        ])
+    h.tabla(columnas, filas, montos=["Monto Transbank", "Monto bordero original", "Monto editado"],
+            fechas=["Fecha venta", "Fecha bordero editada"], filtro=True, congelar=True,
+            anchos=[10, 12, 16, 7, 15, 22, 26, 18, 15, 10, 16, 14, 10, 14, 40, 26, 26, 16])
 
 
 def _conciliados(libro, d):
@@ -207,6 +249,7 @@ def generar(conciliacion) -> bytes:
     _capitulo(libro, d, cat.CREDITO)
     _cuotas(libro, d)
     _capitulo(libro, d, cat.PREPAGO)
+    _anomalias(libro, d)
     _conciliados(libro, d)
     _parametros(libro, d)
     salida = BytesIO()

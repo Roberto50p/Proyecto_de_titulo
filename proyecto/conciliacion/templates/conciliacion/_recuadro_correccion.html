@@ -1,0 +1,44 @@
+{% load conciliacion_extras l10n %}{% with c=v.correccion %}
+<div class="recuadro-correccion">
+  <div class="recuadro-datos">
+    <div>
+      <h4>Transbank</h4>
+      <p>Código <strong>{{ v.codigo_autorizacion|default:"(vacío)" }}</strong> · {{ v.fecha_venta|date:"d/m/Y" }} · {{ v.monto_original|pesos }} · {{ v.medio|medio }}{% if v.cuota %} · cuota {{ v.cuota }}{% endif %}<br><span class="n-ayuda">{{ v.local }}</span></p>
+      {% if f.categoria == "MEDIO_DISTINTO" or f.categoria == "SIN_BORDERO" %}{% if v.tarjeta %}
+        <p class="dato-tarjeta">Tarjeta <strong>{{ v.tarjeta }}</strong>{% if v.marca_tarjeta %} → {{ v.marca_tarjeta }}{% endif %} · {{ v.medio|medio }} según Transbank</p>
+      {% endif %}{% endif %}
+    </div>
+    <div>
+      <h4>Bordero original</h4>
+      {% if c %}
+        <p>{% if c.documento_original %}Documento <strong>{{ c.documento_original }}</strong> · {{ c.monto_bordero_original|pesos }}{% if c.cod_deb_original %} · {{ c.cod_deb_original }}{% endif %}{% else %}Sin registro en el bordero{% endif %}<br><span class="n-ayuda">{{ c.categoria_original|categoria }}</span></p>
+      {% else %}
+        <p>{% if v.pago or v.codigo_sugerido %}Documento <strong>{{ v.codigo_sugerido|default:v.pago.documento }}</strong> · {{ v.monto_bordero|pesos }}{% if v.pago %} · {{ v.pago.cod_deb }} · {{ v.pago.fecha|date:"d/m/Y" }}{% endif %}{% else %}Sin registro en el bordero{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <form method="post" action="{% url 'conciliacion:corregir_venta' v.pk %}" class="form-correccion">
+    {% csrf_token %}
+    <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+    {% if f.solo_aceptar %}
+      <p class="n-ayuda">Esta anomalía no tiene un dato del bordero que corregir: escribe qué decidiste (obligatorio).</p>
+    {% else %}
+      <p class="n-ayuda">{% if f.categoria == "DIGITACION" %}Escribe el documento correcto tal como lo verificaste (el monto, la tarjeta y la fecha del bordero ya están bien).{% elif f.categoria == "DIF_MONTO" %}Escribe el monto correcto tal como lo verificaste, o acepta la diferencia con un comentario.{% else %}Registra el pago tal como lo verificaste (voucher, cuenta del huésped, recepción) y cuenta en el comentario dónde lo encontraste.{% endif %} Al volver a conciliar, el sistema verifica si calza con Transbank. El bordero original no se modifica: lo que hay que corregir en FrontOffice se informa al área responsable de FrontOffice.</p>
+      <div class="campos-correccion">
+        {% for campo in f %}{% if campo.name != "comentario" and campo.name != "aceptada" %}
+          <label>{{ campo.label }}{{ campo }}</label>
+        {% endif %}{% endfor %}
+      </div>
+      {% if f.categoria == "SIN_BORDERO" and v.marca_tarjeta and not c %}<p class="n-ayuda">Cod. Deb. sugerido por la tarjeta ({{ v.marca_tarjeta }}); cámbialo solo si el pago se hizo con otra.</p>{% endif %}
+      {% if "aceptada" in f.fields %}<label class="check">{{ f.aceptada }} {{ f.aceptada.label }} <span class="n-ayuda">(por ejemplo, una propina; el comentario pasa a ser obligatorio)</span></label>{% endif %}
+    {% endif %}
+    <label class="campo-comentario">Comentario{% if f.comentario_obligatorio %} <span class="n-ayuda">(obligatorio)</span>{% else %} <span class="n-ayuda">(opcional)</span>{% endif %}{{ f.comentario }}</label>
+    <div class="acciones">
+      {% if c %}<span class="n-ayuda">Guardada el {{ c.modificada|date:"d/m/Y H:i" }}</span>{% endif %}
+      {% if c %}<button type="submit" name="accion" value="quitar" class="boton boton-peligro" formnovalidate>Quitar corrección</button>{% endif %}
+      <button type="submit" name="accion" value="guardar" class="boton boton-principal">Guardar</button>
+    </div>
+  </form>
+</div>
+{% endwith %}

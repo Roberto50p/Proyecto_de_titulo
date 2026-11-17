@@ -7,7 +7,7 @@ import pytest
 
 from conciliacion.lectores.transbank import leer_transbank
 from conciliacion.models import ArchivoCargado, Conciliacion, VentaTransbank
-from conciliacion.servicio import conflictos, procesar, reemplazar, validar
+from conciliacion.servicio import conflictos, guardar_correccion, procesar, reemplazar, validar
 
 CREDITOS = "CREDITOS TBK 08-09.xlsx"
 
@@ -102,8 +102,8 @@ def test_transbank_con_error_en_otra_conciliacion_no_cuenta(septiembre_procesado
 def test_reemplazar_quita_de_la_anterior(septiembre_procesado, crear_conciliacion):
     anterior = septiembre_procesado
     venta = anterior.ventas.filter(medio="DEBITO", categoria="OK").first()
-    venta.observacion = "Revisado con el banco"
-    venta.save()
+    guardar_correccion(venta, {"aceptada": True, "comentario": "Revisado con el banco", "documento": "",
+                               "monto": None, "cod_deb": "", "fecha_bordero": None})
     ok_debito = anterior.ventas.filter(medio="DEBITO", categoria="OK").count()
 
     nueva = crear_conciliacion()
@@ -113,7 +113,7 @@ def test_reemplazar_quita_de_la_anterior(septiembre_procesado, crear_conciliacio
     anterior.refresh_from_db()
     assert anterior.estado == Conciliacion.BORRADOR
     assert not anterior.archivos.filter(medio="DEBITO").exists()
-    assert any(v[1] == "Revisado con el banco" for v in anterior.observaciones["ventas"].values())
+    assert anterior.correcciones.get().comentario == "Revisado con el banco"  # la corrección no se pierde
     assert debito.id not in conflictos(nueva)
 
     procesar(nueva)

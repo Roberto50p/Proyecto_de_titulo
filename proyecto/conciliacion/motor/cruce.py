@@ -104,6 +104,8 @@ def conciliar_ventas(ventas: pd.DataFrame, pagos: pd.DataFrame,
         candidatos = [p for p in candidatos if abs((p["fecha"] - v["fecha_venta"]).days) <= params.ventana_dias]
         if not candidatos:
             continue
+        # Un pago corregido por el analista para esta venta gana a los reales con el mismo código.
+        candidatos = [p for p in candidatos if p.get("corregido") == True] or candidatos  # noqa: E712 (NaN en reales)
         p = min(candidatos, key=lambda p: (abs(v["monto_original"] - abs(p["valor"])),
                                            abs((p["fecha"] - v["fecha_venta"]).days)))
         if abs(v["monto_original"] - abs(p["valor"])) > params.tolerancia_clp:
@@ -120,7 +122,7 @@ def conciliar_ventas(ventas: pd.DataFrame, pagos: pd.DataFrame,
         mejor, mejor_ratio = None, params.umbral_similitud
         for i in por_fecha.get(v["fecha_venta"], []):
             p = pagos_por_id[i]
-            if i in usados or not p["documento_norm"]:
+            if i in usados or not p["documento_norm"] or p.get("corregido") == True:  # noqa: E712
                 continue
             if v["medio"] not in params.medios_de(p["cod_deb"]):
                 continue

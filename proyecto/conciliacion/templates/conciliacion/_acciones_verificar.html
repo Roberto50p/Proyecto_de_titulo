@@ -1,0 +1,9 @@
+<div class="acciones acciones-verificar">
+  <form method="post" action="{% url 'conciliacion:procesar' conc.pk %}">
+    {% csrf_token %}
+    <input type="hidden" name="volver" value="{{ request.get_full_path }}">
+    <button type="submit" class="boton boton-principal">Volver a conciliar</button>
+  </form>
+  <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">¿Faltan archivos? Agregarlos</a>
+  <span class="n-ayuda">Volver a conciliar aplica las correcciones guardadas y verifica si las anomalías desaparecen.</span>
+</div>

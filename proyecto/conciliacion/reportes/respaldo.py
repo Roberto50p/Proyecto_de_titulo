@@ -12,7 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 from openpyxl import Workbook
 
-from ..models import ArchivoCargado, MovimientoCartola, PagoBordero, Pendiente, ResultadoAbono, VentaTransbank
+from ..models import ArchivoCargado, CorreccionManual, MovimientoCartola, PagoBordero, Pendiente, ResultadoAbono, VentaTransbank
 from ..motor import categorias as cat
 from .excel import Hoja
 
@@ -74,7 +74,7 @@ def tablas(conciliaciones) -> list[Tabla]:
                    ["Conciliación ID", "Medio", "Fecha venta", "Tipo movimiento", "Código comercio", "Local",
                     "Monto original", "Monto vuelto", "Monto válido para abono", "Comisión", "IVA comisión",
                     "Total abono", "Tipo venta", "Cuota", "Tarjeta", "Código autorización", "Boleta", "Categoría",
-                    "Monto bordero", "Diferencia", "Código sugerido", "Nota", "Mensaje", "Revisado", "Observación"],
+                    "Monto bordero", "Diferencia", "Código sugerido", "Nota", "Mensaje"],
                    montos=("Monto original", "Monto vuelto", "Monto válido para abono", "Comisión", "IVA comisión",
                            "Total abono", "Monto bordero", "Diferencia"),
                    fechas=("Fecha venta",))
@@ -84,19 +84,18 @@ def tablas(conciliaciones) -> list[Tabla]:
             v.conciliacion_id, _medio(v.medio), v.fecha_venta, v.tipo_movimiento, v.codigo_comercio, v.local,
             v.monto_original, v.monto_vuelto, v.monto_abono_valido, v.comision, v.iva_comision, v.total_abono,
             v.tipo_venta, v.cuota, v.tarjeta, v.codigo_autorizacion, v.boleta, _categoria(v.categoria),
-            v.monto_bordero, v.diferencia, v.codigo_sugerido, v.nota, v.mensaje, _si(v.revisado), v.observacion,
+            v.monto_bordero, v.diferencia, v.codigo_sugerido, v.nota, v.mensaje,
         ])
 
     abonos = Tabla("Abonos",
                    ["Conciliación ID", "Medio", "Fecha abono", "Total abono", "Categoría", "Fecha cartola",
-                    "Descripción cartola", "Monto cartola", "Diferencia", "Mensaje", "Revisado", "Observación"],
+                    "Descripción cartola", "Monto cartola", "Diferencia", "Mensaje"],
                    montos=("Total abono", "Monto cartola", "Diferencia"), fechas=("Fecha abono", "Fecha cartola"))
     for r in ResultadoAbono.objects.filter(conciliacion_id__in=ids).order_by("conciliacion_id", "medio",
                                                                              "fecha_abono"):
         abonos.filas.append([
             r.conciliacion_id, _medio(r.medio), r.fecha_abono, r.total_abono, _categoria(r.categoria),
-            r.cartola_fecha, r.cartola_descripcion, r.cartola_monto, r.diferencia, r.mensaje, _si(r.revisado),
-            r.observacion,
+            r.cartola_fecha, r.cartola_descripcion, r.cartola_monto, r.diferencia, r.mensaje,
         ])
 
     cartola = Tabla("Cartola",
@@ -133,7 +132,22 @@ def tablas(conciliaciones) -> list[Tabla]:
             p.usuario, p.designacion, _si(p.invalido), p.conciliacion_id,
         ])
 
-    return [resumen, archivos, ventas, abonos, cartola, pendientes, pagos]
+    correcciones = Tabla("Correcciones manuales",
+                         ["Conciliación ID", "Medio", "Fecha venta", "Código", "Cuota", "Monto venta", "Local",
+                          "Categoría original", "Documento original", "Monto bordero original",
+                          "Cod. Deb. original", "Documento editado", "Monto editado", "Cod. Deb. editado",
+                          "Fecha bordero editada", "Aceptada sin corregir", "Comentario", "Creada", "Modificada"],
+                         montos=("Monto venta", "Monto bordero original", "Monto editado"),
+                         fechas=("Fecha venta", "Fecha bordero editada"))
+    for c in CorreccionManual.objects.filter(conciliacion_id__in=ids).order_by("conciliacion_id", "fecha_venta"):
+        correcciones.filas.append([
+            c.conciliacion_id, _medio(c.medio), c.fecha_venta, c.codigo_autorizacion, c.cuota_num or "",
+            c.monto_original, c.local, _categoria(c.categoria_original), c.documento_original,
+            c.monto_bordero_original, c.cod_deb_original, c.documento, c.monto, c.cod_deb, c.fecha_bordero,
+            _si(c.aceptada), c.comentario, _local(c.creada), _local(c.modificada),
+        ])
+
+    return [resumen, archivos, ventas, abonos, cartola, pendientes, correcciones, pagos]
 
 
 def nombre_archivo() -> str:

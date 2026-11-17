@@ -1,5 +1,5 @@
 {% extends "conciliacion/base.html" %}
-{% load static conciliacion_extras %}
+{% load static conciliacion_extras l10n %}
 {% block titulo %}{{ conc.etiqueta }}{% endblock %}
 {% block contenido %}
 <section class="n-banner">
@@ -22,9 +22,8 @@
 
 <dl class="indicadores">
   <div class="indicador"><dt>Abonado por Transbank</dt><dd>{{ d.total.abono_tbk|pesos }}</dd></div>
-  <div class="indicador"><dt>Llegó a la cartola</dt><dd>{{ d.total.abono_cartola|pesos }}</dd></div>
-  <div class="indicador {% if d.total.diferencial %}alerta{% else %}bien{% endif %}"><dt>Diferencial</dt><dd>{{ d.total.diferencial|pesos }}</dd></div>
-  <div class="indicador {% if d.total.n_falla %}alerta{% endif %}"><dt>Registros con falla</dt><dd>{{ d.total.n_falla|miles }} <small class="n-ayuda">de {{ d.total.n_ventas|miles }} ventas</small></dd></div>
+  <div class="indicador {% if d.total.diferencial %}alerta{% endif %}"><dt>Llegó a la cartola</dt><dd>{{ d.total.abono_cartola|pesos }} <small class="n-ayuda">{% if d.total.diferencial %}faltan {{ d.total.diferencial|pesos }} respecto de Transbank{% else %}igual a lo abonado por Transbank{% endif %}</small></dd></div>
+  <div class="indicador {% if d.por_resolver.n %}alerta{% else %}bien{% endif %}"><dt>Diferencial</dt><dd>{{ d.por_resolver.monto|pesos }} <small class="n-ayuda">{% if d.por_resolver.n %}{{ d.por_resolver.n|miles }} venta{{ d.por_resolver.n|pluralize }} con anomalías por resolver{% else %}sin anomalías por resolver{% endif %}</small></dd></div>
 </dl>
 
 <nav class="pestanas" aria-label="Secciones del resultado">
@@ -55,9 +54,8 @@
         <tfoot><tr><td>Total</td><td class="num">{{ d.total.ventas|pesos }}</td><td class="num">{{ d.total.comision_iva|pesos }}</td><td class="num">{{ d.total.abono_tbk|pesos }}</td><td class="num">{{ d.total.abono_cartola|pesos }}</td><td class="num">{{ d.total.diferencial|pesos }}</td><td class="num">{{ d.total.n_ventas|miles }}</td><td class="num">{{ d.total.n_falla|miles }}</td></tr></tfoot>
       </table>
     </div>
-    <p class="n-nota {% if d.cuadra %}estado-ok{% else %}estado-error{% endif %}">
-      {% if d.cuadra %}Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "Ventas Transbank".{% else %}La suma de las categorías no coincide con "Ventas Transbank" en algún medio de pago; revisa los archivos Transbank.{% endif %}
-    </p>
+    <p class="n-nota {% if d.cuadratura_ok %}estado-ok{% else %}estado-error{% endif %}">{{ d.texto_cuadratura }}</p>
+    {% if not d.cuadratura_ok %}{% include "conciliacion/_acciones_verificar.html" %}{% endif %}
   </section>
 
   {% if d.cartola_sin_archivo %}
@@ -88,7 +86,7 @@
           <tr class="fila-medio-{{ v.medio }} fila-enlace">
             <td><span class="medio medio-{{ v.medio }}">{{ v.medio|medio }}</span></td>
             <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
-            <td><a href="?vista={{ v.medio }}#v{{ v.pk }}" aria-label="Ver {{ v.codigo_autorizacion }} en {{ v.medio|medio }}"><strong>{{ v.codigo_autorizacion }}</strong></a></td>
+            <td><a href="?vista={{ v.medio }}#v{{ v.pk|unlocalize }}" aria-label="Ver {{ v.codigo_autorizacion }} en {{ v.medio|medio }}"><strong>{{ v.codigo_autorizacion }}</strong></a></td>
             <td class="num">{{ v.monto_original|pesos }}</td>
             <td class="num">{{ v.monto_bordero|pesos }}</td>
             <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
@@ -104,7 +102,7 @@
 
   <section class="n-bloque">
     <h2>Matriz de resultados</h2>
-    <p class="n-ayuda">Operación: revisar con Transbank o el banco. Dato: corregir en el sistema del hotel. Aviso no es falla.</p>
+    <p class="n-ayuda">Operación: revisar con Transbank o el banco. Dato: informar al área responsable de FrontOffice. Aviso no es falla.</p>
     <div class="tabla-envoltura">
       <table class="matriz">
         <thead><tr><th>Categoría</th><th>Tipo</th>{% for r in d.resumen_medios %}<th class="num"><span class="medio medio-{{ r.medio }}">{{ r.etiqueta }}</span></th>{% endfor %}<th class="num">Total</th><th class="num">Monto</th></tr></thead>
@@ -139,7 +137,7 @@
       <div class="campo">
         <label for="categoria">Categoría</label>
         <select id="categoria" name="categoria">
-          <option value="">Fallas y avisos (por separado)</option>
+          <option value="">Todas las por revisar</option>
           {% for k, nombre, n in categorias %}<option value="{{ k }}"{% if k == filtro_cat %} selected{% endif %}>{{ nombre }} ({{ n }})</option>{% endfor %}
         </select>
       </div>
@@ -156,16 +154,19 @@
     {% if filtro_cat %}
       {% include "conciliacion/_tabla_ventas.html" with ventas=registros vacio="No hay registros con este filtro." %}
     {% else %}
-      <h3 class="bloque-fallas">Fallas <span class="contador">{{ fallas|length }}</span></h3>
-      <p class="n-ayuda">Problemas que hay que resolver: son los que cuenta la pestaña.</p>
-      {% include "conciliacion/_tabla_ventas.html" with ventas=fallas vacio="No hay fallas en las ventas de este medio." %}
+      <h3 class="bloque-fallas">Por revisar <span class="contador">{{ por_revisar|length }}</span></h3>
+      <p class="n-ayuda">Primero las fallas (Operación y Dato) y después los avisos: ventas que no se pudieron comparar porque falta el bordero de su fecha, cuotas y medio de pago distinto. Ábrelas con "Resolver".</p>
+      {% include "conciliacion/_tabla_ventas.html" with ventas=por_revisar vacio="No hay ventas por revisar en este medio." %}
 
-      <details class="bloque-avisos"{% if not fallas %} open{% endif %}>
-        <summary><h3>Avisos <span class="contador contador-aviso">{{ avisos|length }}</span></h3></summary>
-        <p class="n-ayuda">No son errores: ventas que no se pudieron comparar (por ejemplo, de días que ningún bordero cargado cubre) o cuotas en seguimiento.</p>
-        {% include "conciliacion/_tabla_ventas.html" with ventas=avisos vacio="No hay avisos." %}
+      {% if corregidas %}
+      <details class="bloque-corregidas">
+        <summary><h3>Corregidas manualmente <span class="contador contador-ok">{{ corregidas|length }}</span></h3></summary>
+        <p class="n-ayuda">Anomalías que resolvió el analista. Puedes editarlas o quitarlas y volver a conciliar.</p>
+        {% include "conciliacion/_tabla_ventas.html" with ventas=corregidas vacio="" %}
       </details>
+      {% endif %}
     {% endif %}
+    {% include "conciliacion/_acciones_verificar.html" %}
   </section>
   {% if capitulo.otros %}
     <section class="n-bloque">
@@ -174,4 +175,5 @@
     </section>
   {% endif %}
 {% endif %}
+<script src="{% static 'conciliacion/correcciones.js' %}" defer></script>
 {% endblock %}

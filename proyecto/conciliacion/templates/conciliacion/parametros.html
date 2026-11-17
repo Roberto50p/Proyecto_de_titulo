@@ -1,5 +1,5 @@
 {% extends "conciliacion/base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block titulo %}Parámetros{% endblock %}
 {% block contenido %}
 <section class="n-banner">
@@ -45,7 +45,7 @@
         <tr class="fila-medio-{{ e.medio }}">
           <td>{{ e.cod_deb }}</td>
           <td><span class="medio medio-{{ e.medio }}">{{ e.get_medio_display }}</span></td>
-          <td><form method="post">{% csrf_token %}<button type="submit" name="quitar_equivalencia" value="{{ e.pk }}" class="boton boton-peligro" aria-label="Quitar {{ e }}">Quitar</button></form></td>
+          <td><form method="post">{% csrf_token %}<button type="submit" name="quitar_equivalencia" value="{{ e.pk|unlocalize }}" class="boton boton-peligro" aria-label="Quitar {{ e }}">Quitar</button></form></td>
         </tr>
       {% empty %}<tr><td colspan="3">No hay equivalencias.</td></tr>{% endfor %}
       </tbody>

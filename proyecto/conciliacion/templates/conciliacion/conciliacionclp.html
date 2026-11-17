@@ -1,5 +1,5 @@
 {% extends "conciliacion/base.html" %}
-{% load static conciliacion_extras %}
+{% load static conciliacion_extras l10n %}
 {% block titulo %}{% if conc %}{{ conc.etiqueta }}{% else %}Nueva conciliación{% endif %}{% endblock %}
 {% block contenido %}
 <section class="n-banner">
@@ -25,7 +25,7 @@
 {% if conc %}
 {% if conc.estado == "PROCESADA" %}
 <section class="n-bloque">
-  <p><strong>{{ conc.etiqueta }} ya está conciliada</strong> ({{ conc.procesada_en|date:"d/m/Y H:i" }}). Si agregas o quitas archivos vuelve a borrador hasta que la concilies de nuevo; tus observaciones y revisiones se conservan. <a href="{% url 'conciliacion:detalle' conc.pk %}">Ver el resultado actual</a>.</p>
+  <p><strong>{{ conc.etiqueta }} ya está conciliada</strong> ({{ conc.procesada_en|date:"d/m/Y H:i" }}). Si agregas o quitas archivos vuelve a borrador hasta que la concilies de nuevo; tus correcciones manuales se conservan. <a href="{% url 'conciliacion:detalle' conc.pk %}">Ver el resultado actual</a>.</p>
 </section>
 {% endif %}
 
@@ -47,8 +47,8 @@
           <td class="num">{{ a.filas|miles }}</td>
           <td>{% if a.error %}<span class="estado-error">{{ a.error }}</span>{% elif a.moneda_extranjera %}<span class="estado-error">En {{ a.moneda|default:"moneda no informada" }}: no se concilia</span>{% elif a.ya_conciliado %}{% include "conciliacion/_ya_conciliado.html" %}{% else %}<span class="estado-ok">Listo</span>{% endif %}</td>
           <td><div class="celda-acciones">
-            {% if a.ya_conciliado %}<form method="post">{% csrf_token %}<button type="submit" name="reemplazar" value="{{ a.pk }}" class="boton" title="Quita el archivo de la otra conciliación (vuelve a borrador y conserva sus observaciones) y lo deja en esta" aria-label="Reemplazar {{ a.nombre }} en la otra conciliación">Reemplazar</button></form>{% endif %}
-            <form method="post">{% csrf_token %}<button type="submit" name="eliminar" value="{{ a.pk }}" class="boton boton-peligro" aria-label="Quitar {{ a.nombre }}">Quitar</button></form>
+            {% if a.ya_conciliado %}<form method="post">{% csrf_token %}<button type="submit" name="reemplazar" value="{{ a.pk|unlocalize }}" class="boton" title="Quita el archivo de la otra conciliación (vuelve a borrador y conserva sus correcciones) y lo deja en esta" aria-label="Reemplazar {{ a.nombre }} en la otra conciliación">Reemplazar</button></form>{% endif %}
+            <form method="post">{% csrf_token %}<button type="submit" name="eliminar" value="{{ a.pk|unlocalize }}" class="boton boton-peligro" aria-label="Quitar {{ a.nombre }}">Quitar</button></form>
           </div></td>
         </tr>
       {% endfor %}
@@ -57,7 +57,7 @@
   </div>
   <details>
     <summary>Conciliar de nuevo con otros archivos</summary>
-    <p class="n-ayuda">Quita todos los archivos cargados para subir otra versión del bordero, las cartolas y los reportes Transbank de esta conciliación. Los pagos del bordero que solo venían en estos archivos se descartan; los que ya usó otra conciliación se mantienen. Tus observaciones se conservan y se vuelven a aplicar al conciliar.</p>
+    <p class="n-ayuda">Quita todos los archivos cargados para subir otra versión del bordero, las cartolas y los reportes Transbank de esta conciliación. Los pagos del bordero que solo venían en estos archivos se descartan; los que ya usó otra conciliación se mantienen. Tus correcciones manuales se conservan y se vuelven a aplicar al conciliar.</p>
     <form method="post">{% csrf_token %}<button type="submit" name="quitar_todos" value="1" class="boton boton-peligro">Quitar todos los archivos</button></form>
   </details>
   {% else %}

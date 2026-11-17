@@ -4,7 +4,7 @@ from openpyxl import load_workbook
 
 from conciliacion.reportes.excel import generar
 
-HOJAS = ["Resumen", "Débito", "Crédito", "Cuotas", "Prepago", "Conciliados", "Parámetros"]
+HOJAS = ["Resumen", "Débito", "Crédito", "Cuotas", "Prepago", "Anomalías", "Conciliados", "Parámetros"]
 
 
 def filas_tabla(hoja, encabezado_inicial):

@@ -4,7 +4,8 @@ from django.utils import timezone
 
 from ..models import ArchivoCargado, Conciliacion, PagoBordero
 from ..motor import categorias as cat
-from ..servicio import cartola_sin_archivo, periodo_ventas, utilizables
+from ..motor.mensajes import pesos
+from ..servicio import cartola_sin_archivo, clave_venta, periodo_ventas, utilizables
 
 EMPRESA = "HOTELERA SAN FRANCISCO S.A."
 DEPARTAMENTO = "Depto. Adm. y Finanzas"
@@ -24,6 +25,18 @@ def _invalidos_del_periodo(conc: Conciliacion) -> list:
     if desde:
         invalidos = invalidos.filter(fecha__range=(desde, hasta))
     return list(invalidos.distinct())
+
+
+def texto_cuadratura(cuadra: bool, por_resolver: dict) -> str:
+    """La cuadratura solo es correcta cuando no quedan anomalías por resolver."""
+    if not cuadra:
+        return ("La suma de las categorías no coincide con Ventas Transbank en algún medio de pago; "
+                "revisa los archivos Transbank.")
+    if por_resolver["n"]:
+        n = por_resolver["n"]
+        return (f"Cuadratura pendiente: {n} venta{'s' if n > 1 else ''} con anomalías por {pesos(por_resolver['monto'])}. "
+                "Queda correcta cuando todas estén resueltas ($0 por resolver).")
+    return "Cuadratura correcta: todas las ventas Transbank están conciliadas con el bordero."
 
 
 def armar(conc: Conciliacion) -> dict:
@@ -46,6 +59,13 @@ def armar(conc: Conciliacion) -> dict:
         matriz.append(fila)
 
     ventas = list(conc.ventas.select_related("pago"))
+    correcciones = {c.clave: c for c in conc.correcciones.all()}
+    for v in ventas:
+        v.correccion = correcciones.get(clave_venta(v))
+    anomalas = [v for v in ventas if v.es_venta and v.categoria in cat.POR_RESOLVER]
+    # Mismo monto que la matriz (válido para abono), así se compara directo con "Ventas Transbank".
+    por_resolver = {"n": len(anomalas), "monto": sum(v.monto_abono_valido for v in anomalas)}
+    cuadra = all(r.get("cuadratura", 0) == 0 for r in resumen_medios)
     capitulos = {}
     for m in cat.MEDIOS:
         del_medio = [v for v in ventas if v.medio == m]
@@ -54,7 +74,7 @@ def armar(conc: Conciliacion) -> dict:
             "resumen": next(r for r in resumen_medios if r["medio"] == m),
             "fallas": sorted([v for v in del_medio if v.es_venta and v.es_falla], key=_orden),
             "avisos": sorted([v for v in del_medio if v.es_venta and v.categoria in AVISOS], key=_orden),
-            "conciliados": [v for v in del_medio if v.es_venta and v.categoria == cat.OK],
+            "conciliados": [v for v in del_medio if v.es_venta and v.categoria in (cat.OK, cat.CORREGIDO)],
             "otros": [v for v in del_medio if not v.es_venta],
             "abonos": list(conc.abonos.filter(medio=m)),
         }
@@ -78,5 +98,10 @@ def armar(conc: Conciliacion) -> dict:
         "archivos": list(conc.archivos.all()),
         "invalidos_bordero": _invalidos_del_periodo(conc),
         "cartola_sin_archivo": cartola_sin_archivo(conc),
-        "cuadra": all(r.get("cuadratura", 0) == 0 for r in resumen_medios),
+        "por_resolver": por_resolver,
+        # Hoja de anomalías: lo que sigue por resolver y lo que el analista ya corrigió.
+        "anomalias": sorted([v for v in ventas if v.es_venta and (v.categoria in cat.POR_RESOLVER or v.correccion)],
+                            key=lambda v: (cat.MEDIOS.index(v.medio), v.fecha_venta, v.codigo_autorizacion)),
+        "texto_cuadratura": texto_cuadratura(cuadra, por_resolver),
+        "cuadratura_ok": cuadra and not por_resolver["n"],
     }

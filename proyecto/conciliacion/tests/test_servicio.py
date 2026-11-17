@@ -17,16 +17,124 @@ def test_bordero_traslapado_no_duplica(crear_conciliacion):
     assert PagoBordero.objects.count() == total == 228
 
 
-def test_reprocesar_conserva_observacion(septiembre_procesado):
+def _corregir(venta, **datos):
+    from conciliacion.servicio import guardar_correccion
+
+    base = {"documento": "", "monto": None, "cod_deb": "", "fecha_bordero": None, "aceptada": False, "comentario": ""}
+    return guardar_correccion(venta, base | datos)
+
+
+def _por_resolver(conc):
+    from conciliacion.reportes.datos import armar
+
+    return armar(conc)["por_resolver"]
+
+
+def test_reprocesar_no_duplica(septiembre_procesado):
+    procesar(septiembre_procesado)
+    assert septiembre_procesado.ventas.count() == 141
+    assert PagoBordero.objects.filter(conciliacion=septiembre_procesado).count() == 104
+
+
+def test_correccion_que_calza_queda_verificada(septiembre_procesado):
     conc = septiembre_procesado
-    v = conc.ventas.get(codigo_autorizacion="007626")
-    v.observacion, v.revisado = "Se cobró propina aparte", True
-    v.save()
+    v = conc.ventas.select_related("pago").get(codigo_autorizacion="007626")
+    assert v.categoria == "DIF_MONTO"
+    antes = _por_resolver(conc)
+    c = _corregir(v, documento=v.codigo_autorizacion, monto=v.monto_original, cod_deb=v.pago.cod_deb,
+                  fecha_bordero=v.pago.fecha, comentario="Monto corregido en FrontOffice")
+    assert (c.categoria_original, c.monto_bordero_original) == ("DIF_MONTO", v.monto_bordero)  # copia del original
     procesar(conc)
     v = conc.ventas.get(codigo_autorizacion="007626")
-    assert (v.observacion, v.revisado) == ("Se cobró propina aparte", True)
-    assert conc.ventas.count() == 141
-    assert PagoBordero.objects.filter(conciliacion=conc).count() == 104
+    assert v.categoria == "CORREGIDO" and v.pago is None and "Monto corregido en FrontOffice" in v.mensaje
+    assert _por_resolver(conc) == {"n": antes["n"] - 1, "monto": antes["monto"] - v.monto_abono_valido}
+
+
+def test_correccion_que_no_calza_sigue_anomala(septiembre_procesado):
+    conc = septiembre_procesado
+    v = conc.ventas.select_related("pago").get(codigo_autorizacion="007626")
+    _corregir(v, documento=v.codigo_autorizacion, monto=v.monto_original + 5000, cod_deb=v.pago.cod_deb)
+    procesar(conc)
+    v = conc.ventas.get(codigo_autorizacion="007626")
+    assert v.categoria == "DIF_MONTO" and "no calza" in v.nota
+
+
+def test_corregir_digitacion_con_el_codigo_de_transbank(septiembre_procesado):
+    conc = septiembre_procesado
+    v = conc.ventas.select_related("pago").get(codigo_autorizacion="F0FUAZ")
+    assert v.categoria == "DIGITACION"
+    _corregir(v, documento="F0FUAZ", monto=v.monto_bordero, cod_deb=v.pago.cod_deb, fecha_bordero=v.pago.fecha)
+    procesar(conc)
+    assert conc.ventas.get(codigo_autorizacion="F0FUAZ").categoria == "CORREGIDO"
+
+
+def test_aceptar_sin_corregir_exige_comentario(db):
+    from conciliacion.forms import CorreccionForm
+
+    equivalencias = {"RCO": {"DEBITO", "PREPAGO"}, "V$": {"CREDITO"}}
+
+    def form(categoria, medio="CREDITO", initial=None, **datos):
+        return CorreccionForm(datos, initial=initial, categoria=categoria, medio=medio, cod_debs=equivalencias)
+
+    assert not form("DIF_MONTO", aceptada="on").is_valid()
+    assert form("DIF_MONTO", aceptada="on", comentario="Propina").is_valid()
+    assert not form("MEDIO_DISTINTO").is_valid()  # solo se acepta: el comentario es obligatorio
+    f = form("MEDIO_DISTINTO", comentario="Fue crédito")
+    assert f.is_valid() and f.cleaned_data["aceptada"] is True
+    assert not form("SIN_BORDERO", aceptada="on", comentario="x").is_valid()  # no se acepta: faltan los datos
+    assert not form("SIN_BORDERO", documento="123", monto="1000", cod_deb="V$").is_valid()  # falta el comentario
+    assert form("SIN_BORDERO", documento="123", monto="1000", cod_deb="V$", comentario="Voucher 55").is_valid()
+    assert not form("SIN_BORDERO", documento="123", monto="1000", cod_deb="RCO",
+                    comentario="x").is_valid()  # RCO no es crédito
+
+
+def test_cada_categoria_edita_solo_lo_que_esta_mal(db):
+    from datetime import date
+
+    from conciliacion.forms import CorreccionForm
+
+    bordero = {"documento": "00219I", "monto": 13000, "cod_deb": "V$", "fecha_bordero": date(2026, 10, 29)}
+
+    def form(categoria, medio="CREDITO", **datos):
+        return CorreccionForm(datos or None, initial=bordero, categoria=categoria, medio=medio,
+                              cod_debs={"RCO": {"DEBITO", "PREPAGO"}, "V$": {"CREDITO"}, "MC$": {"CREDITO"}})
+
+    editables = lambda f: [k for k in f.fields if k != "comentario"]  # noqa: E731
+    assert editables(form("DIGITACION")) == ["documento"]
+    assert editables(form("DIF_MONTO")) == ["monto", "aceptada"]
+    assert editables(form("SIN_BORDERO")) == ["documento", "monto", "cod_deb"]  # la fecha nunca se edita
+    assert editables(form("MEDIO_DISTINTO")) == []
+    # En crédito no se ofrece RCO; en débito solo RCO (sin opción vacía).
+    assert [k for k, _ in form("SIN_BORDERO").fields["cod_deb"].choices] == ["", "MC$", "V$"]
+    assert form("SIN_BORDERO", medio="DEBITO").fields["cod_deb"].choices == [("RCO", "RCO · Redcompra")]
+    # Lo que no se muestra se toma del bordero, aunque el navegador mande otro valor.
+    f = form("DIGITACION", documento="2191X", monto="1")
+    assert f.is_valid()
+    assert (f.cleaned_data["documento"], f.cleaned_data["monto"], f.cleaned_data["cod_deb"]) == ("2191X", 13000, "V$")
+    f = form("SIN_BORDERO", documento="1", monto="5", cod_deb="V$", comentario="Voucher", fecha_bordero="2020-01-01")
+    assert f.is_valid() and f.cleaned_data["fecha_bordero"] == date(2026, 10, 29)  # la del bordero/venta, no la enviada
+
+
+def test_marca_de_la_tarjeta():
+    from conciliacion.motor.parametros import cod_deb_de_tarjeta
+
+    assert cod_deb_de_tarjeta("4929 13** **** 8005") == "V$"
+    assert cod_deb_de_tarjeta("5229 48** **** 4096") == "MC$"
+    assert cod_deb_de_tarjeta("2221 00** **** 1111") == "MC$"
+    assert cod_deb_de_tarjeta("3712 34** **** 1005") == "AME$"
+    assert cod_deb_de_tarjeta("3600 12** **** 0001") == "D$"
+    assert cod_deb_de_tarjeta("**** **** **** 8005") == cod_deb_de_tarjeta("") == ""
+
+
+def test_aceptada_queda_corregida_y_se_puede_quitar(septiembre_procesado):
+    conc = septiembre_procesado
+    v = conc.ventas.get(codigo_autorizacion="007626")
+    c = _corregir(v, aceptada=True, comentario="Propina cobrada aparte")
+    procesar(conc)
+    assert conc.ventas.get(codigo_autorizacion="007626").categoria == "CORREGIDO"
+    c.delete()
+    procesar(conc)
+    assert conc.ventas.get(codigo_autorizacion="007626").categoria == "DIF_MONTO"
 
 
 # ---- Correcciones de la revisión final
@@ -114,3 +222,16 @@ def test_cartola_sin_archivo_omite_lineas_conciliadas_en_otra(db):
         MovimientoCartola.objects.create(conciliacion=conc, fecha=date(2026, 9, 8), descripcion="ABONO TBK",
                                          abono=monto, es_transbank=True)
     assert [m.abono for m in cartola_sin_archivo(conc)] == [700]
+
+
+def test_cuadratura_pendiente_mientras_haya_anomalias(septiembre_procesado):
+    from conciliacion.motor import categorias as cat
+    from conciliacion.reportes.datos import armar, texto_cuadratura
+
+    d = armar(septiembre_procesado)
+    anomalas = septiembre_procesado.ventas.filter(es_venta=True, categoria__in=cat.POR_RESOLVER)
+    assert d["por_resolver"] == {"n": anomalas.count(), "monto": sum(v.monto_abono_valido for v in anomalas)}
+    assert d["por_resolver"]["n"] > 0 and not d["cuadratura_ok"]
+    assert d["texto_cuadratura"].startswith("Cuadratura pendiente")
+    assert texto_cuadratura(True, {"n": 0, "monto": 0}).startswith("Cuadratura correcta")
+    assert texto_cuadratura(False, {"n": 0, "monto": 0}).startswith("La suma de las categorías no coincide")

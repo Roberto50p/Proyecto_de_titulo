@@ -1,9 +1,9 @@
-{% load conciliacion_extras %}<div class="tabla-envoltura">
-  <table>
-    <thead><tr><th>Fecha</th><th>Código</th><th>Local</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th class="num">Diferencia</th><th>Categoría</th><th>Qué hacer</th><th>Revisión</th></tr></thead>
+{% load conciliacion_extras l10n %}<div class="tabla-envoltura">
+  <table class="tabla-ventas">
+    <thead><tr><th>Fecha</th><th>Código</th><th>Local</th><th class="num">Monto Transbank</th><th class="num">Monto bordero</th><th class="num">Diferencia</th><th>Categoría</th><th>Qué hacer</th><th>Corrección</th></tr></thead>
     <tbody>
     {% for v in ventas %}
-      <tr id="v{{ v.pk }}">
+      <tr id="v{{ v.pk|unlocalize }}"{% if v.form %} class="fila-corregible" data-recuadro="c{{ v.pk|unlocalize }}"{% endif %}>
         <td>{{ v.fecha_venta|date:"d/m/Y" }}</td>
         <td><strong>{{ v.codigo_autorizacion }}</strong>{% if v.codigo_sugerido %}<br><span class="n-ayuda">bordero: {{ v.codigo_sugerido }}</span>{% endif %}{% if v.cuota %}<br><span class="n-ayuda">cuota {{ v.cuota }}</span>{% endif %}</td>
         <td>{{ v.local }}</td>
@@ -12,8 +12,13 @@
         <td class="num">{{ v.diferencia|pesos }}</td>
         <td><span class="etiqueta tipo-{{ v.tipo }}">{{ v.categoria|categoria }}</span></td>
         <td class="mensaje-celda">{{ v.mensaje }}{% if v.nota %}<br><em>{{ v.nota }}</em>{% endif %}</td>
-        <td>{% include "conciliacion/_revisar_venta.html" %}</td>
+        <td>{% if v.form %}<button type="button" class="boton boton-recuadro" aria-expanded="false" aria-controls="c{{ v.pk|unlocalize }}">{% if v.correccion %}Ver corrección{% else %}Resolver{% endif %}</button>{% if v.correccion and v.categoria != "CORREGIDO" %}<br><span class="n-ayuda">{% if v.correccion.modificada > conc.procesada_en %}Guardada: falta volver a conciliar{% else %}La corrección no calza{% endif %}</span>{% endif %}{% endif %}</td>
       </tr>
+      {% if v.form %}
+      <tr id="c{{ v.pk|unlocalize }}" class="fila-recuadro" hidden>
+        <td colspan="9">{% include "conciliacion/_recuadro_correccion.html" with f=v.form %}</td>
+      </tr>
+      {% endif %}
     {% empty %}
       <tr><td colspan="9">{{ vacio }}</td></tr>
     {% endfor %}

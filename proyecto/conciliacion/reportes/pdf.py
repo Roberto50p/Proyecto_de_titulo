@@ -140,9 +140,8 @@ def _seccion_resumen(d, h):
     texto = ("Los abonos de Transbank cuadran con la cartola (diferencial $0)." if dif == 0 else
              f"Diferencial total entre Transbank y cartola: {pesos(dif)}. Ver detalle por medio de pago.")
     h += [Spacer(1, 3 * mm), Paragraph(texto, E["normal"]),
-          Paragraph("Cuadratura correcta: en cada medio de pago la suma de las categorías es igual a "
-                    "Ventas Transbank." if d["cuadra"] else
-                    "<b>La suma de las categorías no coincide con Ventas Transbank en algún medio.</b>", E["normal"])]
+          Paragraph(escape(d["texto_cuadratura"]) if d["cuadratura_ok"] else f"<b>{escape(d['texto_cuadratura'])}</b>",
+                    E["normal"])]
     if d["cartola_sin_archivo"]:
         total = sum(m.abono for m in d["cartola_sin_archivo"])
         h += [Paragraph(f"Abonos de la cartola sin archivo Transbank ({len(d['cartola_sin_archivo'])} · "
@@ -158,7 +157,7 @@ def _seccion_resumen(d, h):
 def _seccion_matriz(d, h):
     h.append(Paragraph("2. Matriz de resultados", E["h2"]))
     h.append(Paragraph("Cantidad de registros por categoría y medio de pago. Operación: revisar con Transbank o "
-                       "el banco. Dato: corregir en el sistema del hotel. Aviso: no es falla.",
+                       "el banco. Dato: informar al área responsable de FrontOffice. Aviso: no es falla.",
                        E["suave"]))
     filas = [["Categoría", "Tipo"] + [cat.ETIQUETA_MEDIO[m] for m in cat.MEDIOS] + ["Total", "Monto total"]]
     extra = []

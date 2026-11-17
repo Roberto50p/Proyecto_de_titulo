@@ -59,13 +59,10 @@ def test_agregar_archivo_a_conciliacion_procesada_la_deja_en_borrador(cliente, s
     assert cliente.get(url("detalle", septiembre)).status_code == 302
 
 
-def test_cambiar_archivos_conserva_observaciones(cliente, septiembre, datos_reales):
+def test_cambiar_archivos_conserva_correcciones(cliente, septiembre, datos_reales):
     venta = septiembre.ventas.get(codigo_autorizacion="007626")
-    cliente.post(reverse("conciliacion:revisar_venta", args=[venta.pk]),
-                 {"revisado": "on", "observacion": "Se cobró propina aparte"})
-    abono = septiembre.abonos.get(medio="DEBITO")
-    abono.revisado, abono.observacion = True, "Confirmado con el banco"
-    abono.save()
+    cliente.post(reverse("conciliacion:corregir_venta", args=[venta.pk]),
+                 {"accion": "guardar", "aceptada": "on", "comentario": "Se cobró propina aparte"})
 
     debito = septiembre.archivos.get(medio="DEBITO")
     cliente.post(url("archivos", septiembre), {"eliminar": debito.pk})
@@ -73,9 +70,7 @@ def test_cambiar_archivos_conserva_observaciones(cliente, septiembre, datos_real
     cliente.post(url("procesar", septiembre))
 
     venta = septiembre.ventas.get(codigo_autorizacion="007626")
-    assert (venta.revisado, venta.observacion) == (True, "Se cobró propina aparte")
-    abono = septiembre.abonos.get(medio="DEBITO")
-    assert (abono.revisado, abono.observacion) == (True, "Confirmado con el banco")
+    assert venta.categoria == "CORREGIDO" and "Se cobró propina aparte" in venta.mensaje
 
 
 def test_conciliar_de_nuevo_con_otros_archivos(cliente, septiembre, datos_reales):

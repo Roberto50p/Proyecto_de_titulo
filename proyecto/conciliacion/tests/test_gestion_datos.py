@@ -97,7 +97,7 @@ def test_exportar_y_eliminar_conciliacion_real(administrador, septiembre_procesa
     assert r["Content-Disposition"].startswith('attachment; filename="respaldo_conciliaciones_')
     libro = load_workbook(BytesIO(r.content))
     assert libro.sheetnames == ["Conciliaciones", "Archivos", "Ventas Transbank", "Abonos", "Cartola", "Pendientes",
-                                "Pagos bordero"]
+                                "Correcciones manuales", "Pagos bordero"]
     assert libro["Ventas Transbank"].max_row == ventas + 1
     assert libro["Pendientes"].max_row == pendientes + 1
     codigos = {fila[15] for fila in libro["Ventas Transbank"].iter_rows(min_row=2, values_only=True)}
