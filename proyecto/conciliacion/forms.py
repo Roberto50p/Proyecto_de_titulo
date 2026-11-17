@@ -49,3 +49,19 @@ class ParametrosForm(forms.ModelForm):
 class RevisionForm(forms.Form):
     revisado = forms.BooleanField(required=False)
     observacion = forms.CharField(required=False, widget=forms.Textarea, max_length=1000)
+
+
+class FiltroDatosForm(forms.Form):
+    """Rango de fechas de las conciliaciones a exportar y limpiar (ambos extremos opcionales e inclusivos)."""
+
+    # <input type="date"> solo acepta AAAA-MM-DD (el formato local es-cl no lo muestra).
+    desde = forms.DateField(label="Desde", required=False,
+                            widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    hasta = forms.DateField(label="Hasta (fecha tope)", required=False,
+                            widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+
+    def clean(self):
+        datos = super().clean()
+        if datos.get("desde") and datos.get("hasta") and datos["desde"] > datos["hasta"]:
+            raise forms.ValidationError("La fecha desde no puede ser posterior a la fecha tope.")
+        return datos

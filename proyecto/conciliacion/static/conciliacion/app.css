@@ -253,7 +253,7 @@ select, textarea, input[type=text] {
 
 /* ---------- formularios (parámetros) ---------- */
 .n-bloque h3 { margin: 1.25rem 0 .5rem; font-size: 1rem; }
-input[type=password], input[type=number] {
+input[type=password], input[type=number], input[type=date] {
   font: inherit; color: var(--n-tinta); background: var(--n-papel); width: 100%;
   border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: .45rem .65rem; min-height: 40px;
 }
@@ -298,6 +298,10 @@ input[type=password], input[type=number] {
 .acciones { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
 .acciones-columna { flex-direction: column; align-items: stretch; gap: .5rem; }
 td.celda-total { background: #fbf2e3; font-weight: 650; }
+
+/* ---------- gestión de datos ---------- */
+.n-exportado { display: flex; align-items: center; justify-content: space-between; gap: .75rem 1rem; flex-wrap: wrap; margin-top: 1rem; padding: .75rem 1rem; border: 1px solid #b7dfc4; border-radius: var(--n-radio); background: #edf8f1; }
+.n-exportado p { margin: 0; color: #1f5f3a; }
 
 /* ---------- celular ---------- */
 @media (max-width: 760px) {

@@ -1,0 +1,132 @@
+{% extends "conciliacion/base.html" %}
+{% load static conciliacion_extras %}
+{% block titulo %}Gestión de datos{% endblock %}
+{% block contenido %}
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
+
+<section class="n-bloque">
+  <div class="n-cabecera">
+    <div>
+      <h1>Gestión de datos</h1>
+      <p class="n-ayuda">Exporta las conciliaciones a Excel y después elimínalas de la base. Filtra por fecha para limpiar solo un período, o define una fecha tope para borrar todo lo anterior. Los parámetros y equivalencias no se tocan.</p>
+    </div>
+    <div class="n-acciones n-acciones-cabecera">
+      <button type="button" class="boton boton-principal" data-abrir-paso="exportar" {% if not conciliaciones %}disabled{% endif %}><i class="bi bi-box-arrow-up" aria-hidden="true"></i>&nbsp;Exportar y limpiar</button>
+    </div>
+  </div>
+
+  <form method="get" class="filtros" novalidate>
+    {% include "conciliacion/_campo.html" with campo=form.desde %}
+    {% include "conciliacion/_campo.html" with campo=form.hasta %}
+    <button type="submit" class="boton boton-principal">Filtrar</button>
+    {% if request.GET.desde or request.GET.hasta %}<a class="boton" href="{% url 'conciliacion:datos' %}">Quitar filtros</a>{% endif %}
+  </form>
+  {% for e in form.non_field_errors %}<p class="error" role="alert">{{ e }}</p>{% endfor %}
+  <p class="n-ayuda">Fecha tope rápida:
+    {% for etiqueta, fecha in plazos %}<a href="?hasta={{ fecha }}">{{ etiqueta }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}.
+    Se incluyen las conciliaciones cuyo período de abono cae completo dentro del rango (sin abonos cargados, cuenta el día en que se creó).
+  </p>
+
+  <dl class="indicadores">
+    <div class="indicador"><dt>Conciliaciones</dt><dd>{{ conciliaciones|length|miles }}</dd></div>
+    <div class="indicador"><dt>Archivos</dt><dd>{{ totales.archivos|miles }}</dd></div>
+    <div class="indicador"><dt>Ventas Transbank</dt><dd>{{ totales.ventas|miles }}</dd></div>
+    <div class="indicador"><dt>Pendientes</dt><dd>{{ totales.pendientes|miles }}</dd></div>
+  </dl>
+
+  {% if exportado %}
+  <div class="n-exportado" role="status">
+    <p><i class="bi bi-check-circle" aria-hidden="true"></i> Exportado a Excel el {{ exportado.en }}. Ya puedes eliminar estos datos de la base.</p>
+    <button type="button" class="boton boton-peligro" data-abrir-paso="eliminar"><i class="bi bi-trash3" aria-hidden="true"></i>&nbsp;Eliminar datos exportados</button>
+  </div>
+  {% endif %}
+</section>
+
+<section class="n-bloque">
+  <h2>Datos a limpiar</h2>
+  {% if conciliaciones %}
+  <div class="tabla-envoltura">
+    <table>
+      <thead><tr><th>Conciliación</th><th>Estado</th><th>Período desde</th><th>Período hasta</th><th class="num">Archivos</th><th class="num">Ventas</th><th>Creada</th></tr></thead>
+      <tbody>
+      {% for c in conciliaciones %}
+        <tr>
+          <td><a href="{% if c.estado == 'PROCESADA' %}{% url 'conciliacion:detalle' c.pk %}{% else %}{% url 'conciliacion:archivos' c.pk %}{% endif %}"><strong>{{ c.etiqueta }}</strong></a></td>
+          <td>{{ c.get_estado_display }}</td>
+          <td>{{ c.p_desde|date:"d/m/Y" }}</td>
+          <td>{{ c.p_hasta|date:"d/m/Y" }}</td>
+          <td class="num">{{ c.archivos.all|length }}</td>
+          <td class="num">{{ c.resumen.total.n_ventas|miles }}</td>
+          <td>{{ c.creada_en|date:"d/m/Y H:i" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="n-vacio">
+    <p>No hay conciliaciones en ese rango de fechas.</p>
+    <p class="n-ayuda">Cambia el filtro o quítalo para ver todos los datos.</p>
+  </div>
+  {% endif %}
+</section>
+
+<dialog class="n-dialogo dialog" id="limpiar-datos" aria-labelledby="limpiar-datos-titulo">
+  <div data-paso="exportar">
+    <div class="dialog-header">
+      <h1 class="dialog-title" id="limpiar-datos-titulo">1. Exportar respaldo</h1>
+      <p class="n-ayuda">Se exportará{{ conciliaciones|length|pluralize:"n" }} {{ conciliaciones|length }} conciliaci{{ conciliaciones|length|pluralize:"ón,ones" }} con sus archivos, ventas, abonos, cartola, pendientes y pagos del bordero a un archivo Excel.</p>
+    </div>
+    <div class="dialog-body">
+      <form method="post" action="{% url 'conciliacion:exportar_datos' %}" id="exportar-excel">
+        {% csrf_token %}
+        <input type="hidden" name="desde" value="{{ request.GET.desde }}"><input type="hidden" name="hasta" value="{{ request.GET.hasta }}">
+        <button type="submit" class="boton boton-principal fg-emphasis-success"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i>Excel</button>
+      </form>
+    </div>
+    <div class="n-acciones">
+      <form method="dialog"><button type="submit" class="boton">Cancelar</button></form>
+    </div>
+  </div>
+
+  <div data-paso="eliminar" hidden>
+    <div class="dialog-header">
+      <h1 class="dialog-title">2. Eliminar de la base</h1>
+      <p class="n-ayuda">Cuando tengas el respaldo, elimina de la base {{ conciliaciones|length|pluralize:"la,las" }} {{ conciliaciones|length }} conciliaci{{ conciliaciones|length|pluralize:"ón exportada,ones exportadas" }}. Esta acción no se puede deshacer.</p>
+    </div>
+    <form method="post" action="{% url 'conciliacion:eliminar_datos' %}">
+      {% csrf_token %}
+      <input type="hidden" name="desde" value="{{ request.GET.desde }}"><input type="hidden" name="hasta" value="{{ request.GET.hasta }}">
+      <div class="campo campo-ancho">
+        <label for="confirmacion">Escribe ELIMINAR para confirmar</label>
+        <input type="text" id="confirmacion" name="confirmacion" autocomplete="off" required>
+      </div>
+      <div class="n-acciones">
+        <button type="button" class="boton" data-cerrar>Cancelar</button>
+        <button type="submit" class="boton boton-peligro"><i class="bi bi-trash3" aria-hidden="true"></i>&nbsp;Eliminar datos exportados</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+  (function () {
+    var dialogo = document.getElementById("limpiar-datos");
+    function mostrar(paso) {
+      dialogo.querySelectorAll("[data-paso]").forEach(function (p) { p.hidden = p.dataset.paso !== paso; });
+      if (!dialogo.open) dialogo.showModal();
+    }
+    document.querySelectorAll("[data-abrir-paso]").forEach(function (b) {
+      b.addEventListener("click", function () { mostrar(b.dataset.abrirPaso); });
+    });
+    dialogo.querySelector("[data-cerrar]").addEventListener("click", function () { dialogo.close(); });
+    // La descarga del Excel no cambia de página: se pasa directo al paso de eliminar.
+    document.getElementById("exportar-excel").addEventListener("submit", function () {
+      setTimeout(function () { mostrar("eliminar"); }, 0);
+    });
+    {% if abrir_eliminar %}mostrar("eliminar");{% endif %}
+  })();
+</script>
+{% endblock %}

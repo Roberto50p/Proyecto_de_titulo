@@ -1,3 +1,7 @@
+import calendar
+from datetime import date
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
@@ -8,11 +12,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import servicio
-from .forms import ParametrosForm, RevisionForm
-from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema,
+from .forms import FiltroDatosForm, ParametrosForm, RevisionForm
+from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
                      VentaTransbank)
 from .motor import categorias as cat
-from .reportes import excel, pdf
+from .reportes import excel, pdf, respaldo
 from .reportes.datos import armar
 
 VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO]
@@ -290,3 +294,115 @@ def parametros(request):
     return render(request, "conciliacion/parametros.html", {
         "form": form, "equivalencias": EquivalenciaMedio.objects.all(), "medios": MEDIO_CHOICES,
     })
+
+
+# ------------------------------------------------------------------ gestión de datos
+
+# Sesión: qué conciliaciones se exportaron por última vez. Solo esas se pueden eliminar.
+EXPORTADO = "datos_exportados"
+PLAZOS_TOPE = [(3, "Más de 3 meses"), (6, "Más de 6 meses"), (12, "Más de 1 año")]
+
+
+def _meses_atras(fecha: date, meses: int) -> date:
+    anio, mes = divmod(fecha.year * 12 + fecha.month - 1 - meses, 12)
+    return date(anio, mes + 1, min(fecha.day, calendar.monthrange(anio, mes + 1)[1]))
+
+
+def _solo_administrador(request) -> bool:
+    if request.user.is_superuser:
+        return True
+    messages.error(request, "Solo un administrador puede exportar y limpiar datos.")
+    return False
+
+
+def _seleccion(datos) -> tuple[FiltroDatosForm, list[Conciliacion]]:
+    """Filtro de fechas y las conciliaciones que abarca (ninguna si el filtro es inválido)."""
+    form = FiltroDatosForm(datos)
+    if not form.is_valid():
+        return form, []
+    conciliaciones = (servicio.seleccionar(form.cleaned_data["desde"], form.cleaned_data["hasta"])
+                      .select_related("creada_por").prefetch_related("archivos"))
+    return form, list(conciliaciones)
+
+
+def _volver_a_datos(datos, **extra) -> str:
+    filtros = {k: datos.get(k) for k in ("desde", "hasta") if datos.get(k)}
+    consulta = urlencode({**filtros, **extra})
+    return reverse("conciliacion:datos") + (f"?{consulta}" if consulta else "")
+
+
+def _conciliaciones(n: int) -> str:
+    return f"{n} conciliación" if n == 1 else f"{n} conciliaciones"
+
+
+@login_required
+def datos(request):
+    """Gestión de datos: filtra conciliaciones por fecha, las exporta a Excel y luego las elimina."""
+    if not _solo_administrador(request):
+        return redirect("conciliacion:inicio")
+    form, conciliaciones = _seleccion(request.GET)
+    ids = [c.pk for c in conciliaciones]
+    exportado = request.session.get(EXPORTADO)
+    exportado = exportado if ids and exportado and exportado["ids"] == ids else None
+    hoy = timezone.localdate()
+    return render(request, "conciliacion/datos.html", {
+        "form": form,
+        "conciliaciones": conciliaciones,
+        "totales": {
+            "archivos": ArchivoCargado.objects.filter(conciliacion_id__in=ids).count(),
+            "ventas": VentaTransbank.objects.filter(conciliacion_id__in=ids).count(),
+            "pendientes": Pendiente.objects.filter(origen_id__in=ids).count(),
+        },
+        "plazos": [(etiqueta, _meses_atras(hoy, meses).isoformat()) for meses, etiqueta in PLAZOS_TOPE],
+        "exportado": exportado,
+        "abrir_eliminar": exportado is not None and request.GET.get("paso") == "eliminar",
+    })
+
+
+@login_required
+@require_POST
+def exportar_datos(request):
+    """Descarga en Excel las conciliaciones del filtro y deja anotado en la sesión qué se exportó, para permitir
+    eliminarlo después."""
+    if not _solo_administrador(request):
+        return redirect("conciliacion:inicio")
+    form, conciliaciones = _seleccion(request.POST)
+    if not conciliaciones:
+        messages.warning(request, "No hay datos que exportar con ese filtro." if form.is_valid()
+                         else "Revisa las fechas del filtro.")
+        return redirect(_volver_a_datos(request.POST))
+    contenido = respaldo.excel(respaldo.tablas(conciliaciones))
+    request.session[EXPORTADO] = {"ids": [c.pk for c in conciliaciones],
+                                  "en": f"{timezone.localtime():%d/%m/%Y %H:%M}"}
+    respuesta = HttpResponse(contenido,
+                             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    respuesta["Content-Disposition"] = f'attachment; filename="{respaldo.nombre_archivo()}"'
+    return respuesta
+
+
+@login_required
+@require_POST
+def eliminar_datos(request):
+    """Elimina las conciliaciones del filtro, solo si son exactamente las que se exportaron y se confirma con la
+    palabra ELIMINAR."""
+    if not _solo_administrador(request):
+        return redirect("conciliacion:inicio")
+    _, conciliaciones = _seleccion(request.POST)
+    ids = [c.pk for c in conciliaciones]
+    exportado = request.session.get(EXPORTADO)
+    if not ids:
+        messages.warning(request, "No hay datos que eliminar con ese filtro.")
+    elif not exportado or exportado["ids"] != ids:
+        messages.error(request, "Primero exporta estos datos: solo se eliminan los datos recién exportados (si "
+                                "cambiaste el filtro o hubo cambios en las conciliaciones, exporta de nuevo).")
+    elif request.POST.get("confirmacion", "").strip().upper() != "ELIMINAR":
+        messages.warning(request, "No se eliminó nada: escribe ELIMINAR para confirmar.")
+        return redirect(_volver_a_datos(request.POST, paso="eliminar"))
+    else:
+        b = servicio.eliminar_conciliaciones(ids)
+        del request.session[EXPORTADO]
+        messages.success(request, f"Se eliminó de la base: {_conciliaciones(b['conciliaciones'])} con "
+                                  f"{b['archivos']} archivos, "
+                                  f"{b['ventas']} ventas, {b['pendientes']} pendientes y {b['pagos']} pagos del "
+                                  f"bordero. El respaldo queda en el Excel exportado el {exportado['en']}.")
+    return redirect(_volver_a_datos(request.POST))

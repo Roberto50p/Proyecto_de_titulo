@@ -18,4 +18,7 @@ urlpatterns = [
     path("ventas/<int:pk>/revisar/", views.revisar_venta, name="revisar_venta"),
     path("parametros/", views.parametros, name="parametros"),
     path("limpiar-base/", views.limpiar_base, name="limpiar_base"),
+    path("datos/", views.datos, name="datos"),
+    path("datos/exportar/", views.exportar_datos, name="exportar_datos"),
+    path("datos/eliminar/", views.eliminar_datos, name="eliminar_datos"),
 ]
