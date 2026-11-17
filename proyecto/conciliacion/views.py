@@ -4,20 +4,22 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.views.decorators.http import require_POST
 
 from . import servicio
 from .forms import CorreccionForm, FiltroDatosForm, ParametrosForm
 from .models import (MEDIO_CHOICES, ArchivoCargado, Conciliacion, EquivalenciaMedio, ParametrosSistema, Pendiente,
-                     VentaTransbank)
+                     VentaDolar, VentaTransbank)
 from .motor import categorias as cat
 from .motor.parametros import cod_deb_de_tarjeta
-from .reportes import excel, pdf, respaldo
+from .reportes import excel, pdf, respaldo, excel_usd
 from .reportes.datos import armar
 
 VISTAS = ["resumen", cat.DEBITO, cat.CREDITO, cat.PREPAGO]
@@ -29,22 +31,56 @@ def inicio(request):
     return render(request, "conciliacion/inicio.html")
 
 
-@login_required
-def clp(request):
-    """Carga de una conciliación en pesos: "Cargar" crea (o reutiliza) un borrador con los archivos y lleva a su tabla."""
+def _nueva_carga(request, moneda: str, vista: str):
+    """"Cargar" crea (o reutiliza) un borrador en esa moneda con los archivos y lleva a su tabla."""
     if request.method == "POST":
         if not request.FILES.getlist("archivos"):
             messages.error(request, "Selecciona al menos un archivo.")
-            return redirect("conciliacion:clp")
-        conc = _borrador(request)
+            return redirect(vista)
+        conc = _borrador(request, moneda)
         _guardar_subidos(request, conc)
         return redirect("conciliacion:archivos", conc.pk)
-    return render(request, "conciliacion/conciliacionclp.html")
+    return render(request, "conciliacion/conciliacionclp.html", {"moneda": moneda})
+
+
+@login_required
+def clp(request):
+    return _nueva_carga(request, Conciliacion.CLP, "conciliacion:clp")
+
+
+@login_required
+def usd(request):
+    """Conciliación en dólares: abono Transbank US$, ERP, carteras de las tarjetas y cartola US$."""
+    return _nueva_carga(request, Conciliacion.USD, "conciliacion:usd")
+
+
+MONEDAS = ["CLP", "USD"]
+
+
+def _de_moneda(moneda: str):
+    """Ids de conciliaciones con archivos en esa moneda (ArchivoCargado.moneda: "Pesos chilenos", "Dólares"; el
+    bordero no la informa). Una conciliación con archivos en ambas monedas aparece en las dos."""
+    pesos = ArchivoCargado.objects.filter(moneda__istartswith="pesos")
+    archivos = pesos if moneda == "CLP" else ArchivoCargado.objects.exclude(moneda="").exclude(moneda__istartswith="pesos")
+    return archivos.values("conciliacion_id")
+
+
+def _filtro_moneda(request) -> str:
+    """Siempre hay una moneda elegida (botones tipo radio); CLP por defecto."""
+    moneda = request.GET.get("moneda", "")
+    return moneda if moneda in MONEDAS else Conciliacion.CLP
 
 
 @login_required
 def lista(request):
-    return render(request, "conciliacion/lista.html", {"conciliaciones": Conciliacion.objects.prefetch_related("archivos")})
+    conciliaciones = Conciliacion.objects.prefetch_related("archivos")
+    moneda_filtro = _filtro_moneda(request)
+    # Un borrador sin archivos no tiene moneda en sus archivos: se muestra según la moneda con que se creó.
+    conciliaciones = conciliaciones.filter(Q(pk__in=_de_moneda(moneda_filtro))
+                                           | Q(archivos__isnull=True, moneda=moneda_filtro)).distinct()
+    return render(request, "conciliacion/lista.html", {
+        "conciliaciones": conciliaciones, "monedas": MONEDAS, "moneda_filtro": moneda_filtro,
+    })
 
 
 # ------------------------------------------------------------------ asistente
@@ -58,10 +94,11 @@ def nueva(request):
     return redirect("conciliacion:archivos", _borrador(request).pk)
 
 
-def _borrador(request) -> Conciliacion:
-    conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True)
-                 if not c.parametros and not c.correcciones.exists()), None)
-    return conc or Conciliacion.objects.create(creada_por=request.user)
+def _borrador(request, moneda: str = Conciliacion.CLP) -> Conciliacion:
+    conc = next((c for c in Conciliacion.objects.filter(estado=Conciliacion.BORRADOR, archivos__isnull=True,
+                                                        moneda=moneda)
+                 if not c.parametros and not c.observaciones), None)
+    return conc or Conciliacion.objects.create(creada_por=request.user, moneda=moneda)
 
 
 def _guardar_subidos(request, conc) -> None:
@@ -169,6 +206,15 @@ def detalle(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk)
     if conc.estado != Conciliacion.PROCESADA:
         return redirect("conciliacion:revision", conc.pk)
+    if conc.moneda == Conciliacion.USD:
+        filtro = request.GET.get("tarjeta", "")
+        ventas = conc.ventas_usd.all()
+        return render(request, "conciliacion/resultado_usd.html", {
+            "conc": conc, "tarjetas": [(t, n, conc.resumen["tarjetas"][t]) for t, n in VentaDolar.TARJETAS
+                                       if t in conc.resumen["tarjetas"]],
+            "filtro": filtro, "fallas": [v for v in ventas if v.es_falla and filtro in ("", v.tarjeta)],
+            "conciliadas": [v for v in ventas if not v.es_falla and filtro in ("", v.tarjeta)],
+        })
     return render(request, "conciliacion/resultado.html", _contexto_resultado(request, conc))
 
 
@@ -221,7 +267,8 @@ def _nombre_reporte(extension: str) -> str:
 
 @login_required
 def descargar_pdf(request, pk):
-    conc = get_object_or_404(Conciliacion, pk=pk, estado=Conciliacion.PROCESADA)
+    # shortcut: el PDF existe solo en pesos; en dólares se descarga el Excel. Agregar pdf_usd si se necesita.
+    conc = get_object_or_404(Conciliacion, pk=pk, estado=Conciliacion.PROCESADA, moneda=Conciliacion.CLP)
     respuesta = HttpResponse(pdf.generar(conc), content_type="application/pdf")
     respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_reporte("pdf")}"'
     return respuesta
@@ -230,7 +277,8 @@ def descargar_pdf(request, pk):
 @login_required
 def descargar_excel(request, pk):
     conc = get_object_or_404(Conciliacion, pk=pk, estado=Conciliacion.PROCESADA)
-    respuesta = HttpResponse(excel.generar(conc),
+    generar = excel_usd.generar if conc.moneda == Conciliacion.USD else excel.generar
+    respuesta = HttpResponse(generar(conc),
                              content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     respuesta["Content-Disposition"] = f'attachment; filename="{_nombre_reporte("xlsx")}"'
     return respuesta

@@ -149,3 +149,9 @@ CONCILIACION_DATOS_OCTUBRE = os.environ.get(
     "CONCILIACION_DATOS_OCTUBRE",
     str(BASE_DIR.parent.parent / "Datos de prueba octubre"),
 )
+# Conciliación en dólares (diciembre): abono Transbank US$, ERP, carteras por tarjeta, cartola US$ y las salidas
+# del proceso anterior ("archivos de salida de proceso") para comparar.
+CONCILIACION_DATOS_DOLAR = os.environ.get(
+    "CONCILIACION_DATOS_DOLAR",
+    str(BASE_DIR.parent.parent / "datos de prueba - 4 dic"),
+)

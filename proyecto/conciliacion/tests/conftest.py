@@ -39,16 +39,22 @@ def datos_octubre():
 
 
 @pytest.fixture
+def datos_dolar():
+    """Archivos reales de la conciliación en dólares (no versionados). Se omite la prueba si no están."""
+    return _carpeta(settings.CONCILIACION_DATOS_DOLAR)
+
+
+@pytest.fixture
 def media_temporal(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path / "media"
     return settings.MEDIA_ROOT
 
 
-def _crear(carpeta, nombres):
+def _crear(carpeta, nombres, moneda="CLP"):
     from conciliacion.models import ArchivoCargado, Conciliacion
     from conciliacion.servicio import leer_archivo, sha256_de
 
-    conc = Conciliacion.objects.create()
+    conc = Conciliacion.objects.create(moneda=moneda)
     for nombre in nombres:
         with open(carpeta / nombre, "rb") as f:
             archivo = File(f, name=nombre)

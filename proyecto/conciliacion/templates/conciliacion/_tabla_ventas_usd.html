@@ -1,0 +1,23 @@
+{% load conciliacion_extras %}
+<div class="tabla-envoltura">
+  <table>
+    <thead><tr><th>Tarjeta</th><th>Fecha venta</th><th>Código</th><th class="num">Monto Transbank</th><th>Documento ERP</th><th class="num">Valor ERP</th><th class="num">Cartera</th><th class="num">Diferencia</th><th>Resultado</th></tr></thead>
+    <tbody>
+    {% for v in ventas %}
+      <tr>
+        <td>{{ v.get_tarjeta_display }}</td>
+        <td>{{ v.fecha_venta|date:"d/m/Y" }} <span class="n-ayuda">{{ v.hora }}</span></td>
+        <td>{{ v.codigo_autorizacion }}</td>
+        <td class="num">{{ v.monto_original|dolares }}</td>
+        <td>{{ v.documento|default:"-" }}</td>
+        <td class="num">{{ v.valor_erp|pesos }}</td>
+        <td class="num">{{ v.monto_cartera|dolares }}</td>
+        <td class="num">{{ v.diferencia|dolares }}</td>
+        <td><strong class="{% if v.es_falla %}estado-error{% else %}estado-ok{% endif %}">{{ v.get_categoria_display }}</strong><br><span class="n-ayuda">{{ v.mensaje }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="9">{{ vacio }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>

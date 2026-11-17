@@ -6,7 +6,7 @@
   <title>{% block titulo %}Inicio{% endblock %} · Sistema de conciliación financiera</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.min.css">
   {# shortcut: ?v= se sube a mano al cambiar app.css para saltar la caché; usar ManifestStaticFilesStorage en producción #}
-  <link rel="stylesheet" href="{% static 'conciliacion/app.css' %}?v=9">
+  <link rel="stylesheet" href="{% static 'conciliacion/app.css' %}?v=10">
   <script src="{% static 'conciliacion/archivos.js' %}" defer></script>
 </head>
 <body>
@@ -28,9 +28,10 @@
     </div>
     <nav class="n-menu">
       {% with ruta=request.resolver_match.url_name %}
-      <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'clp' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Nueva conciliación</a>
+      <a href="{% url 'conciliacion:inicio' %}" class="{% if ruta == 'inicio' or ruta == 'clp' or ruta == 'usd' or ruta == 'archivos' or ruta == 'revision' %}activo{% endif %}"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Nueva conciliación</a>
       <a href="{% url 'conciliacion:lista' %}" class="{% if ruta == 'lista' or ruta == 'detalle' %}activo{% endif %}"><i class="bi bi-clock-history" aria-hidden="true"></i>Historial</a>
-      <a href="{% url 'PR' %}" class="{% if ruta == 'PR' %}activo{% endif %}">Conciliación en US$</a>
+      <a href="{% url 'conciliacion:pendientes' %}" class="{% if ruta == 'pendientes' %}activo{% endif %}"><i class="bi bi-exclamation-circle" aria-hidden="true"></i>Pendientes</a>
+      <a href="{% url 'conciliacion:usd' %}" class="{% if ruta == 'usd' %}activo{% endif %}"><i class="bi bi-currency-dollar" aria-hidden="true"></i>Conciliación en US$</a>
       {# Sin acción por ahora #}
       <button type="button" title="Próximamente">Resumen última conciliación</button>
       <a href="{% url 'conciliacion:parametros' %}" class="{% if ruta == 'parametros' %}activo{% endif %}"><i class="bi bi-code" aria-hidden="true"></i>Parámetros</a>

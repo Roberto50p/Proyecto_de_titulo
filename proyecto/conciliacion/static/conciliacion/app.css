@@ -178,6 +178,10 @@ td .boton { min-height: 32px; padding: .25rem .8rem; font-size: .9rem; }
 .medio-DEBITO { color: #1f5fa8; }
 .medio-CREDITO { color: #7f5212; }
 .medio-PREPAGO { color: #2f7d4f; }
+.medio-AX { color: #0b6e8a; }
+.medio-DI { color: #5b6675; }
+.medio-MC { color: #b4531f; }
+.medio-VI { color: #1a3f8f; }
 .fila-medio-DEBITO > td:first-child { box-shadow: inset 4px 0 0 #1f5fa8; }
 .fila-medio-CREDITO > td:first-child { box-shadow: inset 4px 0 0 #b7791f; }
 .fila-medio-PREPAGO > td:first-child { box-shadow: inset 4px 0 0 #2f7d4f; }
@@ -241,6 +245,11 @@ td.mensaje-celda { min-width: 210px; max-width: 420px; color: var(--n-tinta-suav
 .grupo-medios .medio-DEBITO[aria-pressed="true"] { background: #1f5fa8; border-color: #1f5fa8; }
 .grupo-medios .medio-CREDITO[aria-pressed="true"] { background: #7f5212; border-color: #7f5212; }
 .grupo-medios .medio-PREPAGO[aria-pressed="true"] { background: #2f7d4f; border-color: #2f7d4f; }
+.grupo-medios .medio-AX[aria-pressed="true"] { background: #0b6e8a; border-color: #0b6e8a; }
+.grupo-medios .medio-DI[aria-pressed="true"] { background: #5b6675; border-color: #5b6675; }
+.grupo-medios .medio-MC[aria-pressed="true"] { background: #b4531f; border-color: #b4531f; }
+.grupo-medios .medio-VI[aria-pressed="true"] { background: #1a3f8f; border-color: #1a3f8f; }
+.grupo-medios .moneda[aria-pressed="true"] { background: var(--n-acento); border-color: var(--n-acento); }
 select, textarea, input[type=text] {
   font: inherit; color: var(--n-tinta); background: var(--n-papel); width: 100%;
   border: 1px solid var(--n-linea); border-radius: var(--n-radio); padding: .45rem .65rem; min-height: 40px;

@@ -1,0 +1,72 @@
+{% extends "conciliacion/base.html" %}
+{% load static conciliacion_extras %}
+{% block titulo %}{{ conc.etiqueta }}{% endblock %}
+{% block contenido %}
+<section class="n-banner">
+  <img src="{% static 'conciliacion/img/banner.webp' %}" alt="" onerror="this.remove()">
+</section>
+
+<section class="n-bloque">
+  <div class="n-cabecera">
+    <div>
+      <h1>{{ conc.etiqueta }}</h1>
+      <p class="n-ayuda">Conciliación en dólares · procesada {{ conc.procesada_en|date:"d/m/Y H:i" }}</p>
+    </div>
+    <div class="n-acciones n-acciones-cabecera">
+      <a class="boton boton-principal" href="{% url 'conciliacion:excel' conc.pk %}">Descargar Excel</a>
+      <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Modificar archivos o conciliar de nuevo</a>
+    </div>
+  </div>
+</section>
+
+{% with t=conc.resumen.total %}
+<dl class="indicadores">
+  <div class="indicador"><dt>Abonado por Transbank</dt><dd>{{ t.abono_tbk|dolares }}</dd></div>
+  <div class="indicador"><dt>Llegó a la cartola</dt><dd>{{ t.abono_cartola|dolares }}</dd></div>
+  <div class="indicador {% if t.diferencial %}alerta{% else %}bien{% endif %}"><dt>Diferencial</dt><dd>{{ t.diferencial|dolares }}</dd></div>
+  <div class="indicador {% if t.n_falla %}alerta{% endif %}"><dt>Ventas con falla</dt><dd>{{ t.n_falla|miles }} <small class="n-ayuda">de {{ t.n_ventas|miles }} ventas</small></dd></div>
+  <div class="indicador"><dt>Diferencia con las carteras</dt><dd>{{ t.diferencia|dolares }}</dd></div>
+</dl>
+
+<section class="n-bloque">
+  <h2>Resumen por tarjeta</h2>
+  <div class="tabla-envoltura">
+    <table>
+      <thead><tr><th>Tarjeta</th><th class="num">Ventas</th><th class="num">Con falla</th><th class="num">Ventas Transbank</th><th class="num">Conciliado</th><th class="num">En cartera</th><th class="num">Diferencia</th></tr></thead>
+      <tbody>
+      {% for clave, nombre, r in tarjetas %}
+        <tr><td>{{ nombre }}</td><td class="num">{{ r.n_ventas|miles }}</td><td class="num">{{ r.n_falla|miles }}</td><td class="num">{{ r.ventas|dolares }}</td><td class="num">{{ r.conciliado|dolares }}</td><td class="num">{{ r.cartera|dolares }}</td><td class="num">{{ r.diferencia|dolares }}</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td>Total</td><td class="num">{{ t.n_ventas|miles }}</td><td class="num">{{ t.n_falla|miles }}</td><td class="num">{{ t.ventas|dolares }}</td><td class="num">{{ t.conciliado|dolares }}</td><td class="num">{{ t.cartera|dolares }}</td><td class="num">{{ t.diferencia|dolares }}</td></tr></tfoot>
+    </table>
+  </div>
+  <p class="n-ayuda">"Conciliado" suma las ventas cuyo documento del ERP calza con la cartera de la tarjeta; "Diferencia" es Conciliado menos lo que la cartera registra en dólares.</p>
+</section>
+{% endwith %}
+
+<section class="n-bloque">
+  <h2>Abonos contra la cartola</h2>
+  <ul>{% for a in conc.resumen.abonos %}<li class="{% if a.en_cartola %}estado-ok{% elif a.en_cartola is False %}estado-error{% endif %}">{{ a.mensaje }}</li>{% endfor %}</ul>
+</section>
+
+<section class="n-bloque">
+  <form method="get" class="filtros">
+    <div class="campo">
+      <span id="tarjeta-etiqueta" class="campo-etiqueta">Tarjeta</span>
+      <div class="grupo-medios" role="group" aria-labelledby="tarjeta-etiqueta">
+        {# el botón activo envía tarjeta vacía: volver a pulsarlo quita el filtro #}
+        {% for clave, nombre, r in tarjetas %}<button type="submit" name="tarjeta" value="{% if clave != filtro %}{{ clave }}{% endif %}" class="boton moneda" aria-pressed="{% if clave == filtro %}true{% else %}false{% endif %}">{{ nombre }}</button>{% endfor %}
+      </div>
+    </div>
+  </form>
+
+  <h2>Ventas con falla ({{ fallas|length }})</h2>
+  {% include "conciliacion/_tabla_ventas_usd.html" with ventas=fallas vacio="No hay ventas con falla." %}
+
+  <details>
+    <summary>Ventas conciliadas ({{ conciliadas|length }})</summary>
+    {% include "conciliacion/_tabla_ventas_usd.html" with ventas=conciliadas vacio="No hay ventas conciliadas." %}
+  </details>
+</section>
+{% endblock %}
