@@ -126,6 +126,23 @@ def leer_archivo(ac: ArchivoCargado) -> None:
             elif ac.tipo == ArchivoCargado.BORDERO:
                 b = leer_bordero(ruta)
                 ac.desde, ac.hasta, ac.filas = b.desde, b.hasta, len(b.movimientos)
+            elif ac.tipo == ArchivoCargado.ABONO_USD:
+                a = leer_abono_dolar(ruta)
+                ac.moneda, ac.cuenta, ac.fecha_abono, ac.filas = a.moneda, a.cuenta, a.fecha_abono, len(a.ventas)
+                if not a.ventas.empty:
+                    ac.desde, ac.hasta = a.ventas.fecha_venta.min(), a.ventas.fecha_venta.max()
+                # Montos en float solo para mostrar; al conciliar se relee el archivo con centavos exactos.
+                ac.resumen = {k: float(v) for k, v in a.resumen.items()} | {
+                    "tarjetas": sorted(set(a.ventas.tarjeta)) if not a.ventas.empty else []}
+            elif ac.tipo == ArchivoCargado.EMISOR:
+                c = leer_cartera(ruta)
+                ac.banco, ac.filas, ac.resumen = f"{usd.TARJETAS[c.marca]} US$", len(c.documentos), {"marca": c.marca}
+            elif ac.tipo == ArchivoCargado.ERP:
+                e = leer_erp(ruta)
+                fechas = e.fecha.dropna()
+                ac.filas = len(e)
+                if not fechas.empty:
+                    ac.desde, ac.hasta = fechas.min(), fechas.max()
             else:
                 c = leer_cartola(ruta)
                 ac.banco, ac.cuenta, ac.moneda = c.banco, c.cuenta, c.moneda
