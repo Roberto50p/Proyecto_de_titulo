@@ -5,16 +5,19 @@ limpiar la base. Cada tabla lleva el ID de la conciliación para relacionarlas e
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from io import BytesIO
 
 from django.db.models import Q
 from django.utils import timezone
 from openpyxl import Workbook
 
-from ..models import ArchivoCargado, CorreccionManual, MovimientoCartola, PagoBordero, Pendiente, ResultadoAbono, VentaTransbank
+from ..models import (ArchivoCargado, Conciliacion, CorreccionManual, MovimientoCartola, PagoBordero, Pendiente,
+                      ResultadoAbono, VentaDolar, VentaTransbank)
 from ..motor import categorias as cat
 from .excel import Hoja
+from .excel_usd import DOLARES
 
 
 @dataclass
@@ -24,6 +27,8 @@ class Tabla:
     filas: list[list] = field(default_factory=list)
     montos: tuple[str, ...] = ()
     fechas: tuple[str, ...] = ()
+    dolares: tuple[str, ...] = ()  # columnas en dólares, con centavos
+    filas_en_dolares: set[int] | None = None  # si se indica, `dolares` aplica solo a esas filas (el resto, pesos)
 
 
 def _si(valor: bool) -> str:
@@ -33,6 +38,11 @@ def _si(valor: bool) -> str:
 def _local(momento: datetime | None) -> str:
     """Fecha y hora en la zona del hotel, como texto (el formato de fecha de las tablas no muestra la hora)."""
     return f"{timezone.localtime(momento):%d/%m/%Y %H:%M}" if momento else ""
+
+
+def _fecha(iso: str | None) -> date | None:
+    """Fecha guardada como texto AAAA-MM-DD en el resumen JSON."""
+    return date.fromisoformat(iso) if iso else None
 
 
 def _categoria(codigo: str) -> str:
@@ -47,17 +57,19 @@ def tablas(conciliaciones) -> list[Tabla]:
     """Tablas del respaldo. `conciliaciones` es una lista de Conciliacion con `p_desde` y `p_hasta`
     (servicio.seleccionar)."""
     ids = [c.pk for c in conciliaciones]
+    totales = ("Abono Transbank", "Abono en cartola", "Diferencial")  # en la moneda de cada conciliación
     resumen = Tabla("Conciliaciones",
-                    ["ID", "Conciliación", "Estado", "Período desde", "Período hasta", "Creada", "Procesada",
-                     "Creada por", "Abono Transbank", "Abono en cartola", "Diferencial", "Ventas", "Con falla"],
-                    montos=("Abono Transbank", "Abono en cartola", "Diferencial"),
-                    fechas=("Período desde", "Período hasta"))
+                    ["ID", "Conciliación", "Estado", "Moneda", "Período desde", "Período hasta", "Creada",
+                     "Procesada", "Creada por", *totales, "Ventas", "Con falla"],
+                    montos=totales, dolares=totales, fechas=("Período desde", "Período hasta"),
+                    filas_en_dolares={i for i, c in enumerate(conciliaciones) if c.moneda == Conciliacion.USD})
     for c in conciliaciones:
         total = (c.resumen or {}).get("total", {})
         resumen.filas.append([
-            c.pk, c.etiqueta, c.get_estado_display(), c.p_desde, c.p_hasta, _local(c.creada_en),
-            _local(c.procesada_en), c.creada_por.get_username() if c.creada_por else "", total.get("abono_tbk"),
-            total.get("abono_cartola"), total.get("diferencial"), total.get("n_ventas"), total.get("n_falla"),
+            c.pk, c.etiqueta, c.get_estado_display(), c.get_moneda_display(), c.p_desde, c.p_hasta,
+            _local(c.creada_en), _local(c.procesada_en), c.creada_por.get_username() if c.creada_por else "",
+            total.get("abono_tbk"), total.get("abono_cartola"), total.get("diferencial"), total.get("n_ventas"),
+            total.get("n_falla"),
         ])
 
     archivos = Tabla("Archivos",
@@ -97,6 +109,36 @@ def tablas(conciliaciones) -> list[Tabla]:
             r.conciliacion_id, _medio(r.medio), r.fecha_abono, r.total_abono, _categoria(r.categoria),
             r.cartola_fecha, r.cartola_descripcion, r.cartola_monto, r.diferencia, r.mensaje,
         ])
+
+    # Conciliaciones en dólares: sus ventas cruzadas con el ERP y la cartera, y la verificación de cada abono en la
+    # cartola US$ (que solo se guarda en el resumen de la conciliación).
+    ventas_usd = Tabla("Ventas US$",
+                       ["Conciliación ID", "Tarjeta", "Fecha venta", "Hora", "Código autorización",
+                        "Monto Transbank US$", "Comisión US$", "Documento ERP", "Valor ERP $", "Cartera US$",
+                        "Diferencia US$", "Resultado", "Mensaje"],
+                       montos=("Valor ERP $",), fechas=("Fecha venta",),
+                       dolares=("Monto Transbank US$", "Comisión US$", "Cartera US$", "Diferencia US$"))
+    for v in VentaDolar.objects.filter(conciliacion_id__in=ids).order_by("conciliacion_id", "tarjeta",
+                                                                         "fecha_venta", "hora", "fila"):
+        ventas_usd.filas.append([
+            v.conciliacion_id, v.get_tarjeta_display(), v.fecha_venta, v.hora, v.codigo_autorizacion,
+            v.monto_original, v.comision, v.documento, v.valor_erp, v.monto_cartera, v.diferencia,
+            v.get_categoria_display(), v.mensaje,
+        ])
+
+    abonos_usd = Tabla("Abonos US$",
+                       ["Conciliación ID", "Fecha abono", "Abono US$", "En cartola", "Fecha cartola",
+                        "Descripción cartola", "Mensaje"],
+                       fechas=("Fecha abono", "Fecha cartola"), dolares=("Abono US$",))
+    for c in conciliaciones:
+        if c.moneda != Conciliacion.USD:
+            continue
+        for a in (c.resumen or {}).get("abonos", []):
+            abonos_usd.filas.append([
+                c.pk, _fecha(a["fecha_abono"]), Decimal(a["monto"]),
+                "" if a["en_cartola"] is None else _si(a["en_cartola"]), _fecha(a["cartola_fecha"]),
+                a["cartola_descripcion"], a["mensaje"],
+            ])
 
     cartola = Tabla("Cartola",
                     ["Conciliación ID", "Fecha", "Descripción", "Canal", "N° documento", "Cargo", "Abono", "Saldo",
@@ -147,7 +189,7 @@ def tablas(conciliaciones) -> list[Tabla]:
             _si(c.aceptada), c.comentario, _local(c.creada), _local(c.modificada),
         ])
 
-    return [resumen, archivos, ventas, abonos, cartola, pendientes, correcciones, pagos]
+    return [resumen, archivos, ventas, abonos, ventas_usd, abonos_usd, cartola, pendientes, correcciones, pagos]
 
 
 def nombre_archivo() -> str:
@@ -159,8 +201,13 @@ def excel(lista: list[Tabla]) -> bytes:
     libro.remove(libro.active)
     for t in lista:
         h = Hoja(libro, t.nombre)
+        inicio = h.fila + 1  # primera fila de datos, bajo el encabezado
         h.tabla(t.columnas, t.filas, montos=t.montos, fechas=t.fechas, filtro=True, congelar=True,
                 anchos=[max(12, min(40, len(c) + 4)) for c in t.columnas])
+        for col in (t.columnas.index(nombre) + 1 for nombre in t.dolares):
+            for i in range(len(t.filas)):
+                if t.filas_en_dolares is None or i in t.filas_en_dolares:
+                    h.ws.cell(inicio + i, col).number_format = DOLARES
     salida = BytesIO()
     libro.save(salida)
     return salida.getvalue()

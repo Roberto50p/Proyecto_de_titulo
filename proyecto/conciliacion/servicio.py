@@ -377,9 +377,9 @@ def limpiar_base() -> int:
 
 def seleccionar(desde=None, hasta=None):
     """Conciliaciones cuyo período cae completo entre `desde` y `hasta` (ambos opcionales e inclusivos), anotadas con
-    `p_desde` y `p_hasta`. El período son los días de abono de sus archivos Transbank, como en su nombre; si no tiene
-    abonos cargados se usa el día en que se creó."""
-    validos = Q(archivos__tipo=ArchivoCargado.TRANSBANK, archivos__error="", archivos__fecha_abono__isnull=False)
+    `p_desde` y `p_hasta`. El período son los días de abono de sus archivos Transbank (en pesos o US$), como en su
+    nombre; si no tiene abonos cargados se usa el día en que se creó."""
+    validos = Q(archivos__tipo__in=ArchivoCargado.ABONOS, archivos__error="", archivos__fecha_abono__isnull=False)
     creada = TruncDate("creada_en")
     conciliaciones = Conciliacion.objects.annotate(
         p_desde=Coalesce(Min("archivos__fecha_abono", filter=validos), creada),
@@ -394,15 +394,16 @@ def seleccionar(desde=None, hasta=None):
 
 def eliminar_conciliaciones(ids) -> dict:
     """Borra las conciliaciones indicadas y lo que depende solo de ellas: archivos (también el archivo guardado),
-    ventas, abonos, movimientos de cartola, los pendientes que originaron, la cobertura de sus borderos y los pagos
-    del bordero que ninguna otra conciliación usa o tiene pendientes. Los pendientes de otras conciliaciones que una
-    borrada cerró siguen cerrados. Devuelve cuánto se borró de cada cosa."""
+    ventas (en pesos y en dólares), abonos, movimientos de cartola, los pendientes que originaron, la cobertura de sus
+    borderos y los pagos del bordero que ninguna otra conciliación usa o tiene pendientes. Los pendientes de otras
+    conciliaciones que una borrada cerró siguen cerrados. Devuelve cuánto se borró de cada cosa."""
     conciliaciones = Conciliacion.objects.filter(pk__in=list(ids))
     archivos = list(ArchivoCargado.objects.filter(conciliacion__in=conciliaciones))
     borrado = {
         "conciliaciones": conciliaciones.count(),
         "archivos": len(archivos),
         "ventas": VentaTransbank.objects.filter(conciliacion__in=conciliaciones).count(),
+        "ventas_usd": VentaDolar.objects.filter(conciliacion__in=conciliaciones).count(),
         "pendientes": Pendiente.objects.filter(origen__in=conciliaciones).count(),
     }
     with transaction.atomic():

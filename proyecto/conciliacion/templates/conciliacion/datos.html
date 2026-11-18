@@ -32,7 +32,8 @@
   <dl class="indicadores">
     <div class="indicador"><dt>Conciliaciones</dt><dd>{{ conciliaciones|length|miles }}</dd></div>
     <div class="indicador"><dt>Archivos</dt><dd>{{ totales.archivos|miles }}</dd></div>
-    <div class="indicador"><dt>Ventas Transbank</dt><dd>{{ totales.ventas|miles }}</dd></div>
+    <div class="indicador"><dt>Ventas en pesos</dt><dd>{{ totales.ventas|miles }}</dd></div>
+    <div class="indicador"><dt>Ventas en dólares</dt><dd>{{ totales.ventas_usd|miles }}</dd></div>
     <div class="indicador"><dt>Pendientes</dt><dd>{{ totales.pendientes|miles }}</dd></div>
   </dl>
 
@@ -77,7 +78,7 @@
   <div data-paso="exportar">
     <div class="dialog-header">
       <h1 class="dialog-title" id="limpiar-datos-titulo">1. Exportar respaldo</h1>
-      <p class="n-ayuda">Se exportará{{ conciliaciones|length|pluralize:"n" }} {{ conciliaciones|length }} conciliaci{{ conciliaciones|length|pluralize:"ón,ones" }} con sus archivos, ventas, abonos, cartola, pendientes y pagos del bordero a un archivo Excel.</p>
+      <p class="n-ayuda">Se exportará{{ conciliaciones|length|pluralize:"n" }} {{ conciliaciones|length }} conciliaci{{ conciliaciones|length|pluralize:"ón,ones" }} con sus archivos, ventas en pesos y en dólares, abonos, cartola, pendientes, correcciones y pagos del bordero a un archivo Excel.</p>
     </div>
     <div class="dialog-body">
       <form method="post" action="{% url 'conciliacion:exportar_datos' %}" id="exportar-excel">
@@ -86,6 +87,7 @@
         <button type="submit" class="boton boton-principal fg-emphasis-success"><i class="bi bi-file-earmark-excel" aria-hidden="true"></i>Excel</button>
       </form>
     </div>
+    <p class="n-ayuda" id="exportar-estado" role="status" aria-live="polite"></p>
     <div class="n-acciones">
       <form method="dialog"><button type="submit" class="boton">Cancelar</button></form>
     </div>
@@ -94,6 +96,7 @@
   <div data-paso="eliminar" hidden>
     <div class="dialog-header">
       <h1 class="dialog-title">2. Eliminar de la base</h1>
+      <p class="n-ayuda" id="respaldo-descargado" role="status"></p>
       <p class="n-ayuda">Cuando tengas el respaldo, elimina de la base {{ conciliaciones|length|pluralize:"la,las" }} {{ conciliaciones|length }} conciliaci{{ conciliaciones|length|pluralize:"ón exportada,ones exportadas" }}. Esta acción no se puede deshacer.</p>
     </div>
     <form method="post" action="{% url 'conciliacion:eliminar_datos' %}">
@@ -122,9 +125,41 @@
       b.addEventListener("click", function () { mostrar(b.dataset.abrirPaso); });
     });
     dialogo.querySelector("[data-cerrar]").addEventListener("click", function () { dialogo.close(); });
-    // La descarga del Excel no cambia de página: se pasa directo al paso de eliminar.
-    document.getElementById("exportar-excel").addEventListener("submit", function () {
-      setTimeout(function () { mostrar("eliminar"); }, 0);
+    // El Excel se pide con fetch y el paso de eliminar se abre solo cuando el respaldo llegó completo y se descargó.
+    // Si se pasara antes, eliminar mientras el Excel aún se genera cancela la descarga: o se borra sin respaldo en el
+    // equipo, o el servidor rechaza el borrado porque todavía no anotó la exportación. Sin JavaScript el formulario
+    // descarga el Excel y, al recargar, la página ofrece "Eliminar datos exportados".
+    var exportar = document.getElementById("exportar-excel");
+    var estado = document.getElementById("exportar-estado");
+    exportar.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var boton = exportar.querySelector("button[type=submit]");
+      boton.disabled = true;
+      estado.classList.remove("error");
+      estado.textContent = "Generando el respaldo…";
+      fetch(exportar.action, {method: "POST", body: new FormData(exportar), credentials: "same-origin", redirect: "manual"})
+        .then(function (r) {
+          if (r.type === "opaqueredirect") { location.reload(); return; }  // aviso del servidor: filtro sin datos o inválido
+          if (!r.ok || (r.headers.get("Content-Type") || "").indexOf("spreadsheetml") === -1) throw new Error(r.status);
+          var nombre = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "");
+          return r.blob().then(function (libro) {
+            var enlace = document.createElement("a");
+            enlace.href = URL.createObjectURL(libro);
+            enlace.download = nombre ? nombre[1] : "respaldo_conciliaciones.xlsx";
+            document.body.append(enlace);
+            enlace.click();
+            enlace.remove();
+            setTimeout(function () { URL.revokeObjectURL(enlace.href); }, 60000);
+            estado.textContent = "";
+            document.getElementById("respaldo-descargado").textContent = "Respaldo descargado: " + enlace.download + ".";
+            mostrar("eliminar");
+          });
+        })
+        .catch(function () {
+          estado.classList.add("error");
+          estado.textContent = "No se pudo generar el respaldo, así que no se puede eliminar nada. Inténtalo de nuevo.";
+        })
+        .finally(function () { boton.disabled = false; });
     });
     {% if abrir_eliminar %}mostrar("eliminar");{% endif %}
   })();

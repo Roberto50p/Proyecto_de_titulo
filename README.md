@@ -87,8 +87,8 @@ Cada conciliación guarda los parámetros con que se procesó y los muestra en e
 
 La sección **Gestión de datos** (`/datos/`) saca conciliaciones antiguas de la base dejando un respaldo:
 
-1. **Filtrar**: "Desde" y "Hasta (fecha tope)", ambos opcionales e inclusivos, o los atajos "Más de 3 meses / 6 meses / 1 año" que fijan la fecha tope. Entra cada conciliación cuyo período de abono (los días de abono de sus Transbank) cae completo en el rango; un borrador sin abonos cuenta el día en que se creó.
-2. **Exportar y limpiar** → **Excel** (descarga). El respaldo trae conciliaciones, archivos, ventas Transbank, abonos, cartola, pendientes y pagos del bordero, cada fila con el ID de su conciliación.
+1. **Filtrar**: "Desde" y "Hasta (fecha tope)", ambos opcionales e inclusivos, o los atajos "Más de 3 meses / 6 meses / 1 año" que fijan la fecha tope. Entra cada conciliación cuyo período de abono (los días de abono de sus archivos Transbank, en pesos o US$) cae completo en el rango; un borrador sin abonos cuenta el día en que se creó.
+2. **Exportar y limpiar** → **Excel** (descarga). El respaldo trae conciliaciones (con su moneda), archivos, ventas Transbank, abonos, ventas y abonos US$, cartola, pendientes, correcciones manuales y pagos del bordero, cada fila con el ID de su conciliación. El paso siguiente se abre recién cuando el Excel llegó completo; si no se pudo generar, el diálogo lo avisa y no deja eliminar.
 3. **Eliminar de la base**: escribir ELIMINAR para confirmar. Solo se eliminan exactamente las conciliaciones recién exportadas en la sesión; si cambia el filtro o los datos, hay que exportar de nuevo. Se borran también sus archivos guardados, la cobertura de sus borderos y los pagos del bordero que ninguna otra conciliación usa; parámetros y equivalencias no se tocan.
 
 ### Conciliación en dólares

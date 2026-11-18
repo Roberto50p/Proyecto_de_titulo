@@ -1,5 +1,6 @@
 import os
 from datetime import date
+from decimal import Decimal
 from io import BytesIO
 
 import pytest
@@ -9,7 +10,7 @@ from django.utils import timezone
 from openpyxl import load_workbook
 
 from conciliacion.models import (ArchivoCargado, CoberturaBordero, Conciliacion, MovimientoCartola, PagoBordero,
-                                 Pendiente, VentaTransbank)
+                                 Pendiente, VentaDolar, VentaTransbank)
 from conciliacion.servicio import seleccionar
 
 
@@ -96,8 +97,8 @@ def test_exportar_y_eliminar_conciliacion_real(administrador, septiembre_procesa
     r = administrador.post(reverse("conciliacion:exportar_datos"), {"hasta": hasta.isoformat()})
     assert r["Content-Disposition"].startswith('attachment; filename="respaldo_conciliaciones_')
     libro = load_workbook(BytesIO(r.content))
-    assert libro.sheetnames == ["Conciliaciones", "Archivos", "Ventas Transbank", "Abonos", "Cartola", "Pendientes",
-                                "Correcciones manuales", "Pagos bordero"]
+    assert libro.sheetnames == ["Conciliaciones", "Archivos", "Ventas Transbank", "Abonos", "Ventas US$",
+                                "Abonos US$", "Cartola", "Pendientes", "Correcciones manuales", "Pagos bordero"]
     assert libro["Ventas Transbank"].max_row == ventas + 1
     assert libro["Pendientes"].max_row == pendientes + 1
     codigos = {fila[15] for fila in libro["Ventas Transbank"].iter_rows(min_row=2, values_only=True)}
@@ -109,3 +110,25 @@ def test_exportar_y_eliminar_conciliacion_real(administrador, septiembre_procesa
         assert not modelo.objects.exists()
     assert ArchivoCargado.objects.filter(conciliacion=otra).count() == 1
     assert rutas and not any(os.path.exists(ruta) for ruta in rutas)
+
+
+def test_respalda_y_elimina_conciliacion_en_dolares(administrador):
+    conc = Conciliacion.objects.create(moneda=Conciliacion.USD, estado=Conciliacion.PROCESADA, resumen={
+        "total": {"abono_tbk": 194.37},
+        "abonos": [{"monto": "194.37", "fecha_abono": "2025-12-03", "en_cartola": True, "cartola_fecha": "2025-12-04",
+                    "cartola_descripcion": "Abono Transbank", "mensaje": "Llegó a la cartola."}]})
+    abono = ArchivoCargado.objects.create(conciliacion=conc, tipo=ArchivoCargado.ABONO_USD, archivo="usd.xlsx",
+                                          nombre="usd.xlsx", sha256="usd", fecha_abono=date(2025, 12, 3))
+    VentaDolar.objects.create(conciliacion=conc, archivo=abono, tarjeta="AX", fecha_venta=date(2025, 11, 26),
+                              codigo_autorizacion="115111", monto_original=Decimal("194.37"),
+                              categoria=VentaDolar.OK)
+    filtro = {"desde": "2025-12-01", "hasta": "2025-12-31"}  # el período es el día del abono US$, no la creación
+
+    r = administrador.post(reverse("conciliacion:exportar_datos"), filtro)
+    libro = load_workbook(BytesIO(r.content))
+    ventas = list(libro["Ventas US$"].iter_rows(min_row=2, values_only=True))
+    assert len(ventas) == 1 and ventas[0][4] == "115111" and ventas[0][5] == 194.37  # con centavos
+    assert list(libro["Abonos US$"].iter_rows(min_row=2, values_only=True))[0][2] == 194.37
+
+    administrador.post(reverse("conciliacion:eliminar_datos"), filtro | {"confirmacion": "ELIMINAR"})
+    assert not Conciliacion.objects.exists() and not VentaDolar.objects.exists()

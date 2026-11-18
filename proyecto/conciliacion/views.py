@@ -440,6 +440,7 @@ def datos(request):
         "totales": {
             "archivos": ArchivoCargado.objects.filter(conciliacion_id__in=ids).count(),
             "ventas": VentaTransbank.objects.filter(conciliacion_id__in=ids).count(),
+            "ventas_usd": VentaDolar.objects.filter(conciliacion_id__in=ids).count(),
             "pendientes": Pendiente.objects.filter(origen_id__in=ids).count(),
         },
         "plazos": [(etiqueta, _meses_atras(hoy, meses).isoformat()) for meses, etiqueta in PLAZOS_TOPE],
@@ -491,7 +492,7 @@ def eliminar_datos(request):
         b = servicio.eliminar_conciliaciones(ids)
         del request.session[EXPORTADO]
         messages.success(request, f"Se eliminó de la base: {_conciliaciones(b['conciliaciones'])} con "
-                                  f"{b['archivos']} archivos, "
-                                  f"{b['ventas']} ventas, {b['pendientes']} pendientes y {b['pagos']} pagos del "
+                                  f"{b['archivos']} archivos, {b['ventas']} ventas en pesos, {b['ventas_usd']} "
+                                  f"ventas en dólares, {b['pendientes']} pendientes y {b['pagos']} pagos del "
                                   f"bordero. El respaldo queda en el Excel exportado el {exportado['en']}.")
     return redirect(_volver_a_datos(request.POST))
