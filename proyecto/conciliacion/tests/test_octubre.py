@@ -80,7 +80,9 @@ def test_procesa_octubre_separando_medios(octubre_cargado):
     assert all(medios[m]["cuadratura"] == 0 for m in cat.MEDIOS)
 
     transbank = conc.movimientos_cartola.filter(es_transbank=True)
-    assert transbank.count() == conc.resumen["cartola_sin_archivo"]["n"] == 22
+    assert transbank.count() == 22
+    # Sin mes (spec 2026-11-11), "sin archivo" mira solo los días de abono cargados (22/10) y la cartola llega al 20/10.
+    assert conc.resumen["cartola_sin_archivo"] == {"n": 0, "monto": 0}
     assert {m.medio_probable for m in transbank if "tarjeta debito" in m.descripcion.lower()} == {"Débito o prepago"}
     assert {m.medio_probable for m in transbank if "pagos varios" in m.descripcion.lower()} == {"Sin determinar"}
 
