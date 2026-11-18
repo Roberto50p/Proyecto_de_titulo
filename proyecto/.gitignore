@@ -3,9 +3,9 @@ __pycache__/
 db.sqlite3
 .venv/
 .env
+.env.local
 .vscode
 media/
 .pytest_cache/
 staticfiles/
 .vercel/
-.env.local
