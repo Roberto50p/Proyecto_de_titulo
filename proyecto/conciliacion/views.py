@@ -336,9 +336,9 @@ def corregir_venta(request, pk):
         messages.success(request, f"Corrección de {venta.codigo_autorizacion} guardada. Presiona \"Volver a "
                                   "conciliar\" para verificarla.")
         return redirect(fila)
-        errores = "; ".join(f"{form.fields[k].label if k in form.fields else ''}: {' '.join(e)}"
-                            for k, e in form.errors.items())
-        messages.error(request, f"No se guardó la corrección de {venta.codigo_autorizacion}. {errores}")
+    errores = "; ".join(f"{form.fields[k].label if k in form.fields else ''}: {' '.join(e)}"
+                        for k, e in form.errors.items())
+    messages.error(request, f"No se guardó la corrección de {venta.codigo_autorizacion}. {errores}")
     return redirect(recuadro)
 
 

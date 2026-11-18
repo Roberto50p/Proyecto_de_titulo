@@ -92,6 +92,8 @@ def test_corregir_sin_comentario_al_aceptar_no_guarda(cliente, septiembre_proces
     r = cliente.post(reverse("conciliacion:corregir_venta", args=[v.pk]), {"accion": "guardar", "aceptada": "on"})
     assert not septiembre_procesado.correcciones.exists()
     assert r.url.endswith(f"#c{v.pk}")  # si no se guardó, el recuadro vuelve abierto
+    html = cliente.get(r.url).content.decode()
+    assert "No se guardó la corrección de 007626" in html and "obligatorio al aceptar" in html  # y dice por qué
 
 
 def test_corregir_venta_no_redirige_fuera(cliente, septiembre_procesado):
