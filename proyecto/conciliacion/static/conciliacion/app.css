@@ -336,3 +336,14 @@ tr.fila-recuadro > td { background: var(--n-fondo); padding: .75rem; }
 .form-correccion .acciones { justify-content: flex-end; margin-top: 0; }
 .acciones-verificar { margin-top: 1.25rem; }
 .contador-ok { background: #e7f4ec; color: #2f7d4f; }
+
+/* Esqueleto mientras se concilia (nueva_revision.html) */
+.esqueleto { display: flex; flex-direction: column; gap: 1.25rem; }
+.esq { display: block; border-radius: 4px; background: linear-gradient(90deg, var(--n-linea) 25%, var(--n-fondo) 50%, var(--n-linea) 75%); background-size: 200% 100%; animation: esq-brillo 1.4s ease-in-out infinite; }
+.esq-titulo { width: 40%; height: 1.8rem; margin-bottom: .6rem; }
+.esq-linea { width: 60%; height: .85rem; }
+.esq-cifra { width: 70%; height: 1.4rem; margin-top: .5rem; }
+.esq-pestana { width: 7rem; height: 1.2rem; margin: .7rem .5rem; }
+.esq-fila { height: 1.1rem; margin: .55rem 0; }
+@keyframes esq-brillo { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .esq { animation: none; } }

@@ -52,10 +52,12 @@
   </div>
 </section>
 
-<form method="post" action="{% url 'conciliacion:procesar' conc.pk %}" class="n-acciones">
+<form method="post" action="{% url 'conciliacion:procesar' conc.pk %}" class="n-acciones" data-esqueleto>
   {% csrf_token %}
   {% if conc.estado == "PROCESADA" %}<span class="n-ayuda">Reemplaza el resultado anterior; se conservan tus correcciones manuales.</span>{% endif %}
   <a class="boton" href="{% url 'conciliacion:archivos' conc.pk %}">Volver a archivos</a>
   <button type="submit" name="procesar" class="boton boton-principal" {% if errores %}disabled aria-disabled="true"{% endif %}>Conciliar</button>
 </form>
+
+{% include "conciliacion/_esqueleto_resultado.html" %}
 {% endblock %}
