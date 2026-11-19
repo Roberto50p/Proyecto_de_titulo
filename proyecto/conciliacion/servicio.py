@@ -195,15 +195,15 @@ def validar(conc: Conciliacion, choques: dict | None = None) -> list[str]:
 
 
 @lru_cache(maxsize=16)
-def _ventas_tbk(ruta: str, _version: tuple):
-    """Ventas de un archivo Transbank, leídas una sola vez por página. `_version` (fecha de modificación y tamaño)
-    evita usar una lectura vieja si se reemplaza un archivo con el mismo nombre."""
-    return leer_transbank(ruta).ventas
+def _ventas_tbk(ac: ArchivoCargado, _nombre: str, _sha256: str):
+    """Ventas de un archivo Transbank, leídas una sola vez por página. La clave es id + nombre + sha256 y no la ruta,
+    porque el almacenamiento remoto (Vercel) no tiene rutas locales; el hash cambia si se reemplaza el contenido."""
+    with ruta_local(ac) as ruta:
+        return leer_transbank(ruta).ventas
 
 
 def ventas_de(ac: ArchivoCargado):
-    st = os.stat(ac.archivo.path)
-    return _ventas_tbk(ac.archivo.path, (st.st_mtime_ns, st.st_size))
+    return _ventas_tbk(ac, ac.archivo.name, ac.sha256)
 
 
 def _ventas_sin_bordero(a: ArchivoCargado, borderos: list[tuple]) -> list[str]:
