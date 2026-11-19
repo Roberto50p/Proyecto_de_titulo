@@ -108,8 +108,11 @@ def test_limpiar_base_borra_conciliaciones_y_conserva_parametros(client, septiem
                                      PagoBordero, ParametrosSistema)
     rutas = [ac.archivo.path for ac in ArchivoCargado.objects.all()]
     client.force_login(User.objects.create_superuser("jefe", password="clave-segura-123"))
-    assert "Limpiar base de datos" in client.get(reverse("conciliacion:inicio")).content.decode()
-    client.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "limpiar"})
+    assert "Limpiar base de datos" not in client.get(reverse("conciliacion:inicio")).content.decode()  # ya no en el menú
+    html = client.get(reverse("conciliacion:datos")).content.decode()
+    assert 'id="limpiar-todo"' in html and "escribe la palabra <strong>LIMPIAR</strong>" in html
+    r = client.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "limpiar"})
+    assert r.url == reverse("conciliacion:datos")
     for modelo in (Conciliacion, ArchivoCargado, PagoBordero, Pendiente, CoberturaBordero, MovimientoCartola):
         assert not modelo.objects.exists()
     assert ParametrosSistema.objects.exists() and EquivalenciaMedio.objects.exists()
@@ -124,5 +127,6 @@ def test_limpiar_base_exige_confirmacion_y_superusuario(cliente, septiembre_proc
     assert Conciliacion.objects.exists()
     cliente.get(reverse("conciliacion:inicio"))
     User.objects.filter(username="analista").update(is_superuser=True)
-    cliente.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "otra cosa"})
+    r = cliente.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "otra cosa"})
     assert Conciliacion.objects.exists()
+    assert r.url == reverse("conciliacion:datos") + "?limpiar=1"  # vuelve con el diálogo abierto

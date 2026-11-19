@@ -74,6 +74,39 @@
   {% endif %}
 </section>
 
+<section class="n-bloque n-zona-peligro">
+  <h2>Limpiar toda la base de datos</h2>
+  <p class="n-ayuda">Borra <strong>todas</strong> las conciliaciones, sin importar la fecha ni el filtro de arriba. Úsalo solo si quieres partir de cero. Para borrar solo un período, usa "Exportar y limpiar".</p>
+  <div class="n-acciones">
+    <button type="button" class="boton boton-peligro" id="abrir-limpiar" {% if not base.conciliaciones %}disabled{% endif %}><i class="bi bi-trash3" aria-hidden="true"></i>&nbsp;Limpiar base de datos</button>
+  </div>
+</section>
+
+<dialog class="n-dialogo dialog" id="limpiar-todo" aria-labelledby="limpiar-todo-titulo">
+  <div class="dialog-header">
+    <h1 class="dialog-title" id="limpiar-todo-titulo">Limpiar toda la base de datos</h1>
+  </div>
+  <p>Se borrarán de forma <strong>permanente</strong>:</p>
+  <ul>
+    <li>{{ base.conciliaciones|miles }} conciliaci{{ base.conciliaciones|pluralize:"ón,ones" }} (en pesos y en dólares)</li>
+    <li>{{ base.archivos|miles }} archivo{{ base.archivos|pluralize }} cargado{{ base.archivos|pluralize }}</li>
+    <li>{{ base.ventas|miles }} venta{{ base.ventas|pluralize }} en pesos y {{ base.ventas_usd|miles }} en dólares</li>
+    <li>Abonos, cartolas, pagos del bordero y correcciones manuales</li>
+  </ul>
+  <p class="n-ayuda">Se conservan los parámetros, las equivalencias y los usuarios. <strong>No se puede deshacer:</strong> si quieres un respaldo, quita el filtro de fechas y usa antes "Exportar y limpiar" para descargar el Excel.</p>
+  <form method="post" action="{% url 'conciliacion:limpiar_base' %}">
+    {% csrf_token %}
+    <div class="campo campo-ancho">
+      <label for="confirmacion-limpiar">Para confirmar, escribe la palabra <strong>LIMPIAR</strong></label>
+      <input type="text" id="confirmacion-limpiar" name="confirmacion" autocomplete="off" required>
+    </div>
+    <div class="n-acciones">
+      <button type="button" class="boton" data-cerrar-limpiar>Cancelar</button>
+      <button type="submit" class="boton boton-peligro" id="confirmar-limpiar"><i class="bi bi-trash3" aria-hidden="true"></i>&nbsp;Limpiar base de datos</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="n-dialogo dialog" id="limpiar-datos" aria-labelledby="limpiar-datos-titulo">
   <div data-paso="exportar">
     <div class="dialog-header">
@@ -162,6 +195,20 @@
         .finally(function () { boton.disabled = false; });
     });
     {% if abrir_eliminar %}mostrar("eliminar");{% endif %}
+
+    // Limpiar toda la base: el botón de confirmar se activa solo al escribir LIMPIAR (el servidor vuelve a validarlo;
+    // sin JavaScript el botón queda activo y el servidor rechaza cualquier otra palabra).
+    var limpiar = document.getElementById("limpiar-todo");
+    var palabra = document.getElementById("confirmacion-limpiar");
+    var confirmar = document.getElementById("confirmar-limpiar");
+    var revisar = function () { confirmar.disabled = palabra.value.trim().toUpperCase() !== "LIMPIAR"; };
+    document.getElementById("abrir-limpiar").addEventListener("click", function () {
+      palabra.value = ""; revisar(); limpiar.showModal(); palabra.focus();
+    });
+    limpiar.querySelector("[data-cerrar-limpiar]").addEventListener("click", function () { limpiar.close(); });
+    palabra.addEventListener("input", revisar);
+    revisar();
+    {% if abrir_limpiar and base.conciliaciones %}limpiar.showModal();{% endif %}
   })();
 </script>
 {% endblock %}

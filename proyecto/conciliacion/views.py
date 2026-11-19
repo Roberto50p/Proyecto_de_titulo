@@ -350,11 +350,12 @@ def limpiar_base(request):
         messages.error(request, "Solo un administrador puede limpiar la base de datos.")
     elif request.POST.get("confirmacion", "").strip().upper() != "LIMPIAR":
         messages.warning(request, "No se limpió la base: debes escribir LIMPIAR para confirmar.")
+        return redirect(reverse("conciliacion:datos") + "?limpiar=1")  # vuelve a abrir el diálogo
     else:
         n = servicio.limpiar_base()
         messages.success(request, f"Base de datos limpia: se borraron {n} conciliaciones con sus archivos, pagos "
-                                  "del bordero y pendientes. Los parámetros se conservan.")
-    return redirect("conciliacion:inicio")
+                                  "del bordero y correcciones. Los parámetros se conservan.")
+    return redirect("conciliacion:datos")
 
 
 @login_required
@@ -446,6 +447,9 @@ def datos(request):
         "plazos": [(etiqueta, _meses_atras(hoy, meses).isoformat()) for meses, etiqueta in PLAZOS_TOPE],
         "exportado": exportado,
         "abrir_eliminar": exportado is not None and request.GET.get("paso") == "eliminar",
+        "base": {"conciliaciones": Conciliacion.objects.count(), "archivos": ArchivoCargado.objects.count(),
+                 "ventas": VentaTransbank.objects.count(), "ventas_usd": VentaDolar.objects.count()},
+        "abrir_limpiar": request.GET.get("limpiar") == "1",
     })
 
 
