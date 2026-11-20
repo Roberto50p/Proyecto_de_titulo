@@ -1,0 +1,20 @@
+{# Esqueleto con la forma de resultado.html: se muestra al enviar un form[data-esqueleto] mientras el servidor concilia. Incluir una vez por página. #}
+<template id="esqueleto-resultado">
+  <div class="esqueleto" aria-busy="true">
+    <p class="sr-only" role="status">Conciliando, esto puede tardar unos minutos…</p>
+    <section class="n-bloque"><span class="esq esq-titulo"></span><span class="esq esq-linea"></span></section>
+    <div class="indicadores">{% for _ in "123" %}<div class="indicador"><span class="esq esq-linea"></span><span class="esq esq-cifra"></span></div>{% endfor %}</div>
+    <div class="pestanas">{% for _ in "1234" %}<span class="esq esq-pestana"></span>{% endfor %}</div>
+    <section class="n-bloque">{% for _ in "12345678" %}<span class="esq esq-fila"></span>{% endfor %}</section>
+  </div>
+</template>
+<script>
+  document.addEventListener("submit", function (e) {
+    if (!e.target.matches("form[data-esqueleto]")) return;
+    var main = document.querySelector(".n-contenido");
+    // setTimeout: deja salir el POST antes de vaciar la página; el navegador la mantiene hasta que llegue el resultado.
+    setTimeout(function () { main.replaceChildren(document.getElementById("esqueleto-resultado").content.cloneNode(true)); });
+  });
+  // Al volver con "atrás" el navegador restaura el esqueleto desde caché; recarga para ver la página real.
+  window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
+</script>
