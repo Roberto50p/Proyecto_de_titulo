@@ -4,7 +4,7 @@ Plataforma web (Django + SQLite) que concilia cada mes las ventas con tarjeta de
 
 - **Bordero** de FrontOffice ("Cargos de Débitos y Créditos"): lo que registró el hotel. Se lee en `.xlsx` y en el `.XLS` antiguo (Excel 4.0) que exporta FrontOffice.
 - **Transbank** "Abonos por día": lo que liquidó Transbank. Sirve un archivo por medio de pago (**débito, crédito, prepago**) o uno con **todos los medios de pago**; en ese caso se separa por medio usando el detalle y se exige que sume el Total abono.
-- **Cartola** en pesos de lo que llegó al banco: **Banco de Chile** (una hoja) o **BancoEstado** "Cartola Histórica" (hojas Resumen y Movimientos; se pueden subir varias, una por día).
+- **Cartola** de lo que llegó al banco: **Banco de Chile** (una hoja) o **BancoEstado** "Cartola Histórica" (hojas Resumen y Movimientos; se pueden subir varias, una por día).
 
 El mes se cierra por **fecha de abono**. El resultado muestra las discrepancias separadas por medio de pago y se descarga en **PDF** y **Excel**.
 
@@ -93,9 +93,9 @@ La sección **Gestión de datos** (`/datos/`) saca conciliaciones antiguas de la
 
 ### Conciliación en dólares
 
-La sección **Conciliación en US$** (`/dolares/`) es la app `web` de la rama `main`, incorporada sin cambiar su código Python (`web/` y `hotel/conciliacion/` son copia exacta de `main`). Solo se reescribió su plantilla `web/templates/procesamiento.html` con los estilos de la plataforma, manteniendo campos, textos y acciones. Se publican únicamente su vista de procesamiento y sus dos descargas Excel, y piden sesión como el resto (`hotel/urls.py`).
+La sección **Conciliación en US$** (`/dolares/`) es la app `web` de la rama `main`, con su código Python (`web/` y `hotel/conciliacion/` son copia exacta de `main`). Se publican únicamente su vista de procesamiento y sus dos descargas Excel, y piden sesión como el resto (`hotel/urls.py`).
 
-Se suben ERP, Amex, Diners, Visa y Mastercard en dólares, banco y Transbank, y se pulsa "Analizar Archivos por ERP". Necesita internet: en cada carga consulta el dólar en mindicador.cl. Los bloques "Consolidado en Pesos", "Parametrización de valores" y "Enviar por Email" vienen sin funcionalidad desde `main`.
+Se suben ERP, Amex, Diners, Visa y Mastercard en dólares, banco y Transbank, y se pulsa "Analizar Archivos por ERP". Necesita internet: en cada carga consulta el dólar en mindicador.cl.
 
 ## Estructura
 
