@@ -1,0 +1,6 @@
+{% extends "errores/base_error.html" %}
+{% block titulo_error %}Solicitud no válida{% endblock %}
+{% block codigo %}400{% endblock %}
+{% block encabezado %}Solicitud no válida{% endblock %}
+{% block explicacion %}El sistema no pudo procesar la información enviada. Puede pasar al subir demasiados archivos de una vez o archivos demasiado grandes.{% endblock %}
+{% block detalle %}<p class="ayuda">Vuelve atrás e inténtalo de nuevo con menos archivos por envío.</p>{% endblock %}

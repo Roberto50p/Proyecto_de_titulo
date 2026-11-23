@@ -303,6 +303,7 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: var(--n
 .acceso-caja { background: var(--n-papel); border-radius: var(--n-radio); border-top: 4px solid var(--n-laton); padding: 2.5rem 2.25rem; width: min(420px, 100%); box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
 .acceso-caja .marca-sub { margin: 0; font-size: .72rem; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--n-laton-tinta); }
 .acceso-caja h1 { margin: .35rem 0 .5rem; font-size: 1.7rem; }
+.n-error-acciones { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
 .formulario { display: flex; flex-direction: column; gap: .35rem; margin-top: 1.5rem; }
 .formulario label { font-weight: 600; font-size: .9rem; }
 .formulario input + label { margin-top: .75rem; }

@@ -1,0 +1,26 @@
+{% extends "conciliacion/base.html" %}
+{% comment %}
+Páginas de error con el diseño del acceso. Solo usan el bloque "cuerpo" (sin menú) porque la página 500 se dibuja
+sin contexto: no hay usuario ni request disponibles.
+{% endcomment %}
+{% block titulo %}{% block titulo_error %}Error{% endblock %}{% endblock %}
+{% block cuerpo %}
+<main class="acceso">
+  <section class="acceso-caja n-error" role="alert" aria-labelledby="titulo-error">
+    <p class="marca-sub">Error {% block codigo %}{% endblock %}</p>
+    <h1 id="titulo-error">{% block encabezado %}{% endblock %}</h1>
+    <p class="ayuda">{% block explicacion %}{% endblock %}</p>
+    {% block detalle %}{% endblock %}
+    <div class="n-error-acciones">
+      {% block acciones %}
+        {% if user.is_authenticated %}
+          <a class="boton boton-principal" href="{% url 'conciliacion:inicio' %}">Ir al inicio</a>
+        {% else %}
+          <a class="boton boton-principal" href="{% url 'login' %}">Iniciar sesión</a>
+        {% endif %}
+        <button type="button" class="boton" onclick="history.back()">Volver atrás</button>
+      {% endblock %}
+    </div>
+  </section>
+</main>
+{% endblock %}

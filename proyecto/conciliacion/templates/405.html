@@ -1,0 +1,5 @@
+{% extends "errores/base_error.html" %}
+{% block titulo_error %}Acción no permitida{% endblock %}
+{% block codigo %}405{% endblock %}
+{% block encabezado %}Acción no permitida{% endblock %}
+{% block explicacion %}Esta dirección corresponde a una acción del sistema (por ejemplo, guardar, conciliar o eliminar) y solo se puede ejecutar desde su botón, no abriéndola directamente en el navegador.{% endblock %}
