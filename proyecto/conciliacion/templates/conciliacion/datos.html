@@ -76,7 +76,7 @@
 
 <section class="n-bloque n-zona-peligro">
   <h2>Limpiar toda la base de datos</h2>
-  <p class="n-ayuda">Borra <strong>todas</strong> las conciliaciones, sin importar la fecha ni el filtro de arriba. Úsalo solo si quieres partir de cero. Para borrar solo un período, usa "Exportar y limpiar".</p>
+  <p class="n-ayuda">Borra <strong>todas</strong> las conciliaciones, sin importar la fecha ni el filtro de arriba. Úsalo solo si quieres partir de cero, después de exportar toda la base (sin filtro de fechas) con "Exportar y limpiar". Para borrar solo un período, usa "Exportar y limpiar".</p>
   <div class="n-acciones">
     <button type="button" class="boton boton-peligro" id="abrir-limpiar" {% if not base.conciliaciones %}disabled{% endif %}><i class="bi bi-trash3" aria-hidden="true"></i>&nbsp;Limpiar base de datos</button>
   </div>
@@ -93,12 +93,16 @@
     <li>{{ base.ventas|miles }} venta{{ base.ventas|pluralize }} en pesos y {{ base.ventas_usd|miles }} en dólares</li>
     <li>Abonos, cartolas, pagos del bordero y correcciones manuales</li>
   </ul>
-  <p class="n-ayuda">Se conservan los parámetros, las equivalencias y los usuarios. <strong>No se puede deshacer:</strong> si quieres un respaldo, quita el filtro de fechas y usa antes "Exportar y limpiar" para descargar el Excel.</p>
+  {% if base.respaldada %}
+  <p class="n-ayuda">Se conservan los parámetros, las equivalencias y los usuarios. <strong>No se puede deshacer:</strong> el respaldo queda en el Excel que exportaste.</p>
+  {% else %}
+  <p class="error" role="alert" id="limpiar-sin-respaldo">Primero exporta toda la base: quita el filtro de fechas y usa "Exportar y limpiar" para descargar el Excel. Si ya lo exportaste pero después hubo cambios en las conciliaciones, expórtala de nuevo.</p>
+  {% endif %}
   <form method="post" action="{% url 'conciliacion:limpiar_base' %}">
     {% csrf_token %}
     <div class="campo campo-ancho">
       <label for="confirmacion-limpiar">Para confirmar, escribe la palabra <strong>LIMPIAR</strong></label>
-      <input type="text" id="confirmacion-limpiar" name="confirmacion" autocomplete="off" required>
+      <input type="text" id="confirmacion-limpiar" name="confirmacion" autocomplete="off" required {% if not base.respaldada %}disabled{% endif %}>
     </div>
     <div class="n-acciones">
       <button type="button" class="boton" data-cerrar-limpiar>Cancelar</button>
@@ -185,6 +189,12 @@
             setTimeout(function () { URL.revokeObjectURL(enlace.href); }, 60000);
             estado.textContent = "";
             document.getElementById("respaldo-descargado").textContent = "Respaldo descargado: " + enlace.download + ".";
+            if (!exportar.elements.desde.value && !exportar.elements.hasta.value) {  // se respaldó toda la base
+              respaldada = true;
+              palabra.disabled = false;
+              var aviso = document.getElementById("limpiar-sin-respaldo");
+              if (aviso) aviso.remove();
+            }
             mostrar("eliminar");
           });
         })
@@ -201,7 +211,8 @@
     var limpiar = document.getElementById("limpiar-todo");
     var palabra = document.getElementById("confirmacion-limpiar");
     var confirmar = document.getElementById("confirmar-limpiar");
-    var revisar = function () { confirmar.disabled = palabra.value.trim().toUpperCase() !== "LIMPIAR"; };
+    var respaldada = {{ base.respaldada|yesno:"true,false" }};
+    var revisar = function () { confirmar.disabled = !respaldada || palabra.value.trim().toUpperCase() !== "LIMPIAR"; };
     document.getElementById("abrir-limpiar").addEventListener("click", function () {
       palabra.value = ""; revisar(); limpiar.showModal(); palabra.focus();
     });

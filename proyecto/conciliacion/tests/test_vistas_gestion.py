@@ -111,6 +111,12 @@ def test_limpiar_base_borra_conciliaciones_y_conserva_parametros(client, septiem
     assert "Limpiar base de datos" not in client.get(reverse("conciliacion:inicio")).content.decode()  # ya no en el menú
     html = client.get(reverse("conciliacion:datos")).content.decode()
     assert 'id="limpiar-todo"' in html and "escribe la palabra <strong>LIMPIAR</strong>" in html
+    assert "Primero exporta toda la base" in html
+    client.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "limpiar"})
+    assert Conciliacion.objects.exists()  # sin respaldo no se borra nada
+
+    client.post(reverse("conciliacion:exportar_datos"))  # toda la base, sin filtro
+    assert "Primero exporta toda la base" not in client.get(reverse("conciliacion:datos")).content.decode()
     r = client.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "limpiar"})
     assert r.url == reverse("conciliacion:datos")
     for modelo in (Conciliacion, ArchivoCargado, PagoBordero, Pendiente, CoberturaBordero, MovimientoCartola):
@@ -127,6 +133,7 @@ def test_limpiar_base_exige_confirmacion_y_superusuario(cliente, septiembre_proc
     assert Conciliacion.objects.exists()
     cliente.get(reverse("conciliacion:inicio"))
     User.objects.filter(username="analista").update(is_superuser=True)
+    cliente.post(reverse("conciliacion:exportar_datos"))  # con respaldo de toda la base, falta solo la palabra
     r = cliente.post(reverse("conciliacion:limpiar_base"), {"confirmacion": "otra cosa"})
     assert Conciliacion.objects.exists()
     assert r.url == reverse("conciliacion:datos") + "?limpiar=1"  # vuelve con el diálogo abierto

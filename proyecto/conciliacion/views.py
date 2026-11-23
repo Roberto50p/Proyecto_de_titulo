@@ -345,14 +345,21 @@ def corregir_venta(request, pk):
 @login_required
 @require_POST
 def limpiar_base(request):
-    """Borra las conciliaciones y sus datos (solo superusuario, confirmando con la palabra LIMPIAR)."""
+    """Borra las conciliaciones y sus datos (solo superusuario, con un respaldo vigente de toda la base y confirmando
+    con la palabra LIMPIAR)."""
     if not request.user.is_superuser:
         messages.error(request, "Solo un administrador puede limpiar la base de datos.")
+        return redirect("conciliacion:datos")
+    _, todas = _seleccion({})
+    if todas and _exportacion_vigente(request, todas) is None:
+        messages.error(request, "No se limpió la base: primero exporta toda la base (sin filtro de fechas) con "
+                                "\"Exportar y limpiar\". Si exportaste antes de los últimos cambios, exporta de nuevo.")
     elif request.POST.get("confirmacion", "").strip().upper() != "LIMPIAR":
         messages.warning(request, "No se limpió la base: debes escribir LIMPIAR para confirmar.")
         return redirect(reverse("conciliacion:datos") + "?limpiar=1")  # vuelve a abrir el diálogo
     else:
         n = servicio.limpiar_base()
+        request.session.pop(EXPORTADO, None)
         messages.success(request, f"Base de datos limpia: se borraron {n} conciliaciones con sus archivos, pagos "
                                   "del bordero y correcciones. Los parámetros se conservan.")
     return redirect("conciliacion:datos")
@@ -388,7 +395,8 @@ def parametros(request):
 
 # ------------------------------------------------------------------ gestión de datos
 
-# Sesión: qué conciliaciones se exportaron por última vez. Solo esas se pueden eliminar.
+# Sesión: qué conciliaciones se exportaron por última vez y la huella de su contenido. Solo esas se pueden eliminar,
+# y solo si no cambiaron desde entonces.
 EXPORTADO = "datos_exportados"
 PLAZOS_TOPE = [(3, "Más de 3 meses"), (6, "Más de 6 meses"), (12, "Más de 1 año")]
 
@@ -415,6 +423,16 @@ def _seleccion(datos) -> tuple[FiltroDatosForm, list[Conciliacion]]:
     return form, list(conciliaciones)
 
 
+def _exportacion_vigente(request, conciliaciones) -> dict | None:
+    """La última exportación de la sesión, si abarca exactamente estas conciliaciones y sus datos no cambiaron desde
+    entonces. Si se procesaron, se agregaron archivos o correcciones, etc., el Excel descargado ya no contiene lo que
+    se borraría: hay que exportar de nuevo."""
+    exportado = request.session.get(EXPORTADO)
+    if not conciliaciones or not exportado or exportado["ids"] != [c.pk for c in conciliaciones]:
+        return None
+    return exportado if exportado.get("huella") == respaldo.huella(respaldo.tablas(conciliaciones)) else None
+
+
 def _volver_a_datos(datos, **extra) -> str:
     filtros = {k: datos.get(k) for k in ("desde", "hasta") if datos.get(k)}
     consulta = urlencode({**filtros, **extra})
@@ -432,8 +450,13 @@ def datos(request):
         return redirect("conciliacion:inicio")
     form, conciliaciones = _seleccion(request.GET)
     ids = [c.pk for c in conciliaciones]
-    exportado = request.session.get(EXPORTADO)
-    exportado = exportado if ids and exportado and exportado["ids"] == ids else None
+    exportado = _exportacion_vigente(request, conciliaciones)
+    _, todas = _seleccion({})
+    # "Limpiar toda la base" exige un respaldo vigente de todas las conciliaciones (sin filtro).
+    if ids == [c.pk for c in todas]:
+        respaldada = not todas or exportado is not None
+    else:
+        respaldada = _exportacion_vigente(request, todas) is not None
     hoy = timezone.localdate()
     return render(request, "conciliacion/datos.html", {
         "form": form,
@@ -447,8 +470,9 @@ def datos(request):
         "plazos": [(etiqueta, _meses_atras(hoy, meses).isoformat()) for meses, etiqueta in PLAZOS_TOPE],
         "exportado": exportado,
         "abrir_eliminar": exportado is not None and request.GET.get("paso") == "eliminar",
-        "base": {"conciliaciones": Conciliacion.objects.count(), "archivos": ArchivoCargado.objects.count(),
-                 "ventas": VentaTransbank.objects.count(), "ventas_usd": VentaDolar.objects.count()},
+        "base": {"conciliaciones": len(todas), "archivos": ArchivoCargado.objects.count(),
+                 "ventas": VentaTransbank.objects.count(), "ventas_usd": VentaDolar.objects.count(),
+                 "respaldada": respaldada},
         "abrir_limpiar": request.GET.get("limpiar") == "1",
     })
 
@@ -456,8 +480,8 @@ def datos(request):
 @login_required
 @require_POST
 def exportar_datos(request):
-    """Descarga en Excel las conciliaciones del filtro y deja anotado en la sesión qué se exportó, para permitir
-    eliminarlo después."""
+    """Descarga en Excel las conciliaciones del filtro y deja anotado en la sesión qué se exportó y la huella de su
+    contenido, para permitir eliminarlo después solo si no cambió."""
     if not _solo_administrador(request):
         return redirect("conciliacion:inicio")
     form, conciliaciones = _seleccion(request.POST)
@@ -465,8 +489,9 @@ def exportar_datos(request):
         messages.warning(request, "No hay datos que exportar con ese filtro." if form.is_valid()
                          else "Revisa las fechas del filtro.")
         return redirect(_volver_a_datos(request.POST))
-    contenido = respaldo.excel(respaldo.tablas(conciliaciones))
-    request.session[EXPORTADO] = {"ids": [c.pk for c in conciliaciones],
+    lista = respaldo.tablas(conciliaciones)
+    contenido = respaldo.excel(lista)
+    request.session[EXPORTADO] = {"ids": [c.pk for c in conciliaciones], "huella": respaldo.huella(lista),
                                   "en": f"{timezone.localtime():%d/%m/%Y %H:%M}"}
     respuesta = HttpResponse(contenido,
                              content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -477,16 +502,16 @@ def exportar_datos(request):
 @login_required
 @require_POST
 def eliminar_datos(request):
-    """Elimina las conciliaciones del filtro, solo si son exactamente las que se exportaron y se confirma con la
-    palabra ELIMINAR."""
+    """Elimina las conciliaciones del filtro, solo si son exactamente las que se exportaron, no cambiaron desde la
+    exportación y se confirma con la palabra ELIMINAR."""
     if not _solo_administrador(request):
         return redirect("conciliacion:inicio")
     _, conciliaciones = _seleccion(request.POST)
     ids = [c.pk for c in conciliaciones]
-    exportado = request.session.get(EXPORTADO)
+    exportado = _exportacion_vigente(request, conciliaciones)
     if not ids:
         messages.warning(request, "No hay datos que eliminar con ese filtro.")
-    elif not exportado or exportado["ids"] != ids:
+    elif exportado is None:
         messages.error(request, "Primero exporta estos datos: solo se eliminan los datos recién exportados (si "
                                 "cambiaste el filtro o hubo cambios en las conciliaciones, exporta de nuevo).")
     elif request.POST.get("confirmacion", "").strip().upper() != "ELIMINAR":
