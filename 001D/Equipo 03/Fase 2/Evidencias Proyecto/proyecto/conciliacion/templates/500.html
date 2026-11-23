@@ -1,0 +1,10 @@
+{% extends "errores/base_error.html" %}
+{% comment %}Se dibuja sin contexto (no hay usuario): los enlaces no dependen de la sesión.{% endcomment %}
+{% block titulo_error %}Error del sistema{% endblock %}
+{% block codigo %}500{% endblock %}
+{% block encabezado %}Ocurrió un error inesperado{% endblock %}
+{% block explicacion %}El sistema no pudo completar la acción. Vuelve a intentarlo en unos minutos; si el problema continúa, avisa al equipo de soporte indicando qué estabas haciendo.{% endblock %}
+{% block acciones %}
+  <a class="boton boton-principal" href="/">Ir al inicio</a>
+  <button type="button" class="boton" onclick="history.back()">Volver atrás</button>
+{% endblock %}

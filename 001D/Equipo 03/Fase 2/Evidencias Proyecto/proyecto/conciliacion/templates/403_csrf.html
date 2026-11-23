@@ -1,0 +1,6 @@
+{% extends "errores/base_error.html" %}
+{% block titulo_error %}La página caducó{% endblock %}
+{% block codigo %}403{% endblock %}
+{% block encabezado %}La página caducó{% endblock %}
+{% block explicacion %}El formulario se envió desde una página que llevaba mucho tiempo abierta o desde una sesión que ya cambió, así que por seguridad no se procesó.{% endblock %}
+{% block detalle %}<p class="ayuda">Vuelve a la página anterior, recárgala (F5) y repite la acción.</p>{% endblock %}

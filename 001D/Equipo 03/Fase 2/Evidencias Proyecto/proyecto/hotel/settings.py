@@ -6,12 +6,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Vercel define VERCEL en el build y en sus funciones: ahí DEBUG queda apagado salvo que se pida.
+# Vercel define VERCEL en el build y en sus funciones.
 EN_VERCEL = "VERCEL" in os.environ
 
 # Los secretos se leen del entorno. Los valores por defecto sirven solo para desarrollo local.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "solo-desarrollo-cambiar-en-produccion")
-DEBUG = os.environ.get("DJANGO_DEBUG", "0" if EN_VERCEL else "1") == "1"
+# DEBUG apagado por defecto (también en local): así los errores muestran las páginas propias (404.html, 500.html...)
+# y nunca la página técnica de Django. Para desarrollar con el detalle de los errores: set DJANGO_DEBUG=1
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 # Los dominios de ngrok permiten mostrar la app desde el PC local con un túnel; .vercel.app es el hosting.
 ALLOWED_HOSTS = os.environ.get(
     "DJANGO_ALLOWED_HOSTS",
@@ -43,6 +45,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Página 405.html en vez de una página en blanco al abrir a mano una acción que solo acepta POST.
+    "conciliacion.middleware.PaginaMetodoNoPermitido",
 ]
 
 ROOT_URLCONF = "hotel.urls"
@@ -123,8 +127,8 @@ if os.environ.get("AWS_STORAGE_BUCKET_NAME"):
     AWS_QUERYSTRING_AUTH = True
     AWS_S3_FILE_OVERWRITE = False
 
-if not DEBUG:
-    # Vercel termina HTTPS en su proxy.
+if EN_VERCEL and not DEBUG:
+    # Vercel termina HTTPS en su proxy. En local (http) las cookies seguras impedirían iniciar sesión.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -134,6 +138,15 @@ DATA_UPLOAD_MAX_NUMBER_FILES = 60
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Con DEBUG apagado Django no imprime los errores en la terminal: se registran igual, para poder diagnosticarlos
+# aunque la persona solo vea la página de error.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"consola": {"class": "logging.StreamHandler"}},
+    "loggers": {"django.request": {"handlers": ["consola"], "level": "ERROR", "propagate": False}},
+}
 
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "conciliacion:inicio"
